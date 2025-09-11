@@ -1,0 +1,37 @@
+specVersion: 0.0.5
+description: RedPackage - Decentralized Red Packet System Subgraph
+repository: https://github.com/limuran/blockchain-data-system
+schema:
+  file: ./schema.graphql
+dataSources:
+  - kind: ethereum
+    name: RedPackage
+    network: sepolia
+    source:
+      address: "0x2bB8eaBb0B662E4fA333A9bF119017994194107E"
+      abi: RedPackage
+      startBlock: 7340000
+    mapping:
+      kind: ethereum/events
+      apiVersion: 0.0.7
+      language: wasm/assemblyscript
+      entities:
+        - RedPackageEntity
+        - GrabRecord
+        - User
+        - RedPackageStats
+        - DailyRedPackageStats
+        - RefundRecord
+      abis:
+        - name: RedPackage
+          file: ./abis/RedPackage.json
+      eventHandlers:
+        - event: RedPackageCreated(indexed uint256,indexed address,uint256,uint256,bool,string)
+          handler: handleRedPackageCreated
+        - event: RedPackageGrabbed(indexed uint256,indexed address,uint256,uint256,uint256)
+          handler: handleRedPackageGrabbed
+        - event: RedPackageCompleted(indexed uint256,indexed address,uint256)
+          handler: handleRedPackageCompleted
+        - event: RedPackageRefunded(indexed uint256,indexed address,uint256)
+          handler: handleRedPackageRefunded
+      file: ./src/red-package.ts

@@ -1,0 +1,79 @@
+type RedPackage @entity {
+  id: ID! # redPackageId
+  creator: User!
+  totalAmount: BigInt!
+  remainingAmount: BigInt!
+  totalCount: BigInt!
+  remainingCount: BigInt!
+  isEqual: Boolean!
+  createTime: BigInt!
+  isActive: Boolean!
+  message: String!
+  blockNumber: BigInt!
+  transactionHash: Bytes!
+  
+  # 关联的抢红包记录
+  grabRecords: [GrabRecord!]! @derivedFrom(field: "redPackage")
+}
+
+type GrabRecord @entity {
+  id: ID! # redPackageId-grabber-timestamp
+  redPackage: RedPackage!
+  grabber: User!
+  amount: BigInt!
+  timestamp: BigInt!
+  blockNumber: BigInt!
+  transactionHash: Bytes!
+}
+
+type User @entity {
+  id: ID! # address
+  address: Bytes!
+  
+  # 统计数据
+  createdRedPackagesCount: BigInt!
+  grabbedRedPackagesCount: BigInt!
+  totalAmountCreated: BigInt!
+  totalAmountGrabbed: BigInt!
+  
+  # 关联的红包和记录
+  createdRedPackages: [RedPackage!]! @derivedFrom(field: "creator")
+  grabRecords: [GrabRecord!]! @derivedFrom(field: "grabber")
+  
+  firstRedPackageTime: BigInt
+  lastRedPackageTime: BigInt
+}
+
+type RedPackageStats @entity {
+  id: ID! # "global"
+  totalRedPackages: BigInt!
+  totalUsers: BigInt!
+  totalAmountDistributed: BigInt!
+  totalGrabRecords: BigInt!
+  
+  # 按类型统计
+  equalRedPackagesCount: BigInt!
+  randomRedPackagesCount: BigInt!
+  
+  lastUpdated: BigInt!
+}
+
+type DailyRedPackageStats @entity {
+  id: ID! # YYYY-MM-DD
+  date: String!
+  redPackagesCreated: BigInt!
+  totalAmountCreated: BigInt!
+  grabRecordsCount: BigInt!
+  totalAmountGrabbed: BigInt!
+  newUsers: BigInt!
+}
+
+type RefundRecord @entity {
+  id: ID! # redPackageId-refund
+  redPackage: RedPackage!
+  creator: User!
+  refundAmount: BigInt!
+  timestamp: BigInt!
+  blockNumber: BigInt!
+  transactionHash: Bytes!
+}

@@ -1,0 +1,75 @@
+type RedPackageEntity @entity(immutable: false) {
+  id: ID!
+  creator: User!
+  totalAmount: BigInt!
+  remainingAmount: BigInt!
+  totalCount: BigInt!
+  remainingCount: BigInt!
+  isEqual: Boolean!
+  createTime: BigInt!
+  isActive: Boolean!
+  message: String!
+  blockNumber: BigInt!
+  transactionHash: Bytes!
+  
+  grabRecords: [GrabRecord!]! @derivedFrom(field: "redPackage")
+}
+
+type GrabRecord @entity(immutable: true) {
+  id: ID!
+  redPackage: RedPackageEntity!
+  grabber: User!
+  amount: BigInt!
+  timestamp: BigInt!
+  blockNumber: BigInt!
+  transactionHash: Bytes!
+}
+
+type User @entity(immutable: false) {
+  id: ID!
+  address: Bytes!
+  
+  createdRedPackagesCount: BigInt!
+  grabbedRedPackagesCount: BigInt!
+  totalAmountCreated: BigInt!
+  totalAmountGrabbed: BigInt!
+  
+  createdRedPackages: [RedPackageEntity!]! @derivedFrom(field: "creator")
+  grabRecords: [GrabRecord!]! @derivedFrom(field: "grabber")
+  
+  firstRedPackageTime: BigInt!
+  lastRedPackageTime: BigInt!
+}
+
+type RedPackageStats @entity(immutable: false) {
+  id: ID!
+  totalRedPackages: BigInt!
+  totalUsers: BigInt!
+  totalAmountDistributed: BigInt!
+  totalGrabRecords: BigInt!
+  
+  equalRedPackagesCount: BigInt!
+  randomRedPackagesCount: BigInt!
+  
+  lastUpdated: BigInt!
+}
+
+type DailyRedPackageStats @entity(immutable: false) {
+  id: ID!
+  date: String!
+  redPackagesCreated: BigInt!
+  totalAmountCreated: BigInt!
+  grabRecordsCount: BigInt!
+  totalAmountGrabbed: BigInt!
+  newUsers: BigInt!
+}
+
+type RefundRecord @entity(immutable: true) {
+  id: ID!
+  redPackage: RedPackageEntity!
+  creator: User!
+  refundAmount: BigInt!
+  timestamp: BigInt!
+  blockNumber: BigInt!
+  transactionHash: Bytes!
+}

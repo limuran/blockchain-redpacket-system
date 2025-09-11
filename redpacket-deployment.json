@@ -1,0 +1,11 @@
+{
+  "contractName": "RedPackage",
+  "contractAddress": "0x2bB8eaBb0B662E4fA333A9bF119017994194107E",
+  "network": "sepolia",
+  "deployer": "0x0F07CdFa12e37cB52f88CDdBE06Db475cf89f423",
+  "deploymentTxHash": "0x2b2bcd3d7c7c02580d3467be1dc7ba6f6a72d8d9df87a749123b3cb6579c3b19",
+  "gasPrice": "20.0 Gwei",
+  "gasUsed": "53793",
+  "deployedAt": "2025-09-08T16:40:42.968Z",
+  "blockNumber": "pending"
+}
