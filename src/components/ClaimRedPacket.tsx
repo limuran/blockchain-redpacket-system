@@ -32,19 +32,19 @@ export function ClaimRedPacket({ redPacketId, onClaimed }: ClaimRedPacketProps) 
   const [isClaiming, setIsClaiming] = useState(false);
   const [coinAnimation, setCoinAnimation] = useState<number[]>([]);
 
-  // 获取红包信息 - 修复函数名
+  // 获取红包信息
   const { data: redPacketInfo, isLoading: isLoadingInfo, refetch: refetchInfo } = useReadContract({
     address: REDPACKET_CONTRACT_ADDRESS,
     abi: REDPACKET_ABI,
-    functionName: 'getRedPackageInfo', // 修正函数名
+    functionName: 'getRedPackageInfo',
     args: [BigInt(redPacketId)],
   }) as { data: RedPacketInfo | undefined, isLoading: boolean, refetch: () => void };
 
-  // 检查用户是否已领取 - 修复函数名
+  // 检查用户是否已领取
   const { data: hasGrabbed, refetch: refetchGrabbed } = useReadContract({
     address: REDPACKET_CONTRACT_ADDRESS,
     abi: REDPACKET_ABI,
-    functionName: 'hasUserGrabbed', // 修正函数名
+    functionName: 'hasUserGrabbed',
     args: [BigInt(redPacketId), address || '0x0'],
     enabled: !!address,
   }) as { data: boolean | undefined, refetch: () => void };
@@ -66,7 +66,7 @@ export function ClaimRedPacket({ redPacketId, onClaimed }: ClaimRedPacketProps) 
       return;
     }
 
-    if (redPacketInfo.remainingCount <= BigInt(0)) {
+    if (redPacketInfo.remainingCount <= 0n) { // 使用BigInt字面量
       toast.error('红包已被抢完');
       return;
     }
@@ -82,7 +82,7 @@ export function ClaimRedPacket({ redPacketId, onClaimed }: ClaimRedPacketProps) 
       writeContract({
         address: REDPACKET_CONTRACT_ADDRESS,
         abi: REDPACKET_ABI,
-        functionName: 'grabRedPackage', // 修正函数名
+        functionName: 'grabRedPackage',
         args: [BigInt(redPacketId)],
       });
 
@@ -139,15 +139,14 @@ export function ClaimRedPacket({ redPacketId, onClaimed }: ClaimRedPacketProps) 
     );
   }
 
-  // 修复BigInt运算
-  const remainingCount = redPacketInfo.remainingCount;
-  const totalCount = redPacketInfo.totalCount;
-  const isFinished = remainingCount <= BigInt(0) || !redPacketInfo.isActive;
+  // 修复BigInt运算 - 转换为数字进行计算
+  const remainingCount = Number(redPacketInfo.remainingCount);
+  const totalCount = Number(redPacketInfo.totalCount);
+  const claimedCount = totalCount - remainingCount;
+  const isFinished = remainingCount <= 0 || !redPacketInfo.isActive;
   
   // 安全的百分比计算
-  const progress = totalCount > BigInt(0) 
-    ? Number((totalCount - remainingCount) * BigInt(100) / totalCount)
-    : 0;
+  const progress = totalCount > 0 ? (claimedCount / totalCount) * 100 : 0;
 
   return (
     <div className="relative max-w-md mx-auto bg-white rounded-2xl shadow-xl overflow-hidden">
@@ -203,7 +202,7 @@ export function ClaimRedPacket({ redPacketId, onClaimed }: ClaimRedPacketProps) 
               <span className="text-sm text-gray-600">红包数量</span>
             </div>
             <p className="text-lg font-bold text-gray-900">
-              {totalCount.toString()} 个
+              {totalCount} 个
             </p>
           </div>
         </div>
@@ -211,8 +210,8 @@ export function ClaimRedPacket({ redPacketId, onClaimed }: ClaimRedPacketProps) 
         {/* 进度条 */}
         <div className="space-y-2">
           <div className="flex justify-between text-sm text-gray-600">
-            <span>已领取 {(totalCount - remainingCount).toString()}/{totalCount.toString()}</span>
-            <span>{remainingCount.toString()} 个剩余</span>
+            <span>已领取 {claimedCount}/{totalCount}</span>
+            <span>{remainingCount} 个剩余</span>
           </div>
           <div className="w-full bg-gray-200 rounded-full h-2">
             <div 
