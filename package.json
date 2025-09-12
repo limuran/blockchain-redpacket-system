@@ -4,9 +4,10 @@
   "description": "区块链数据上链系统 - React + Webpack架构",
   "main": "src/index.js",
   "scripts": {
-    "dev": "webpack serve --mode development",
-    "build": "webpack --mode production",
-    "start": "webpack serve --mode development --open",
+    "dev": "next dev",
+    "build": "next build",
+    "start": "next start",
+    "frontend:dev": "cd src/frontend && npm run dev",
     "deploy": "npm run build && gh-pages -d dist"
   },
   "dependencies": {
@@ -22,6 +23,9 @@
     "react-hot-toast": "^2.4.1"
   },
   "devDependencies": {
+    "next": "14.0.0",
+    "react": "^18",
+    "wagmi": "^2.5.7",
     "@babel/core": "^7.22.0",
     "@babel/preset-env": "^7.22.0",
     "@babel/preset-react": "^7.22.0",
