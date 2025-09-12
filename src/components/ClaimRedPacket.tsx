@@ -13,11 +13,13 @@ import toast from 'react-hot-toast';
 interface RedPacketInfo {
   creator: string;
   totalAmount: bigint;
+  remainingAmount: bigint;
   totalCount: bigint;
-  claimedCount: bigint;
-  message: string;
-  createdAt: bigint;
+  remainingCount: bigint;
+  isEqual: boolean;
+  createTime: bigint;
   isActive: boolean;
+  message: string;
 }
 
 interface ClaimRedPacketProps {
@@ -30,19 +32,19 @@ export function ClaimRedPacket({ redPacketId, onClaimed }: ClaimRedPacketProps) 
   const [isClaiming, setIsClaiming] = useState(false);
   const [coinAnimation, setCoinAnimation] = useState<number[]>([]);
 
-  // 获取红包信息
+  // 获取红包信息 - 修复函数名
   const { data: redPacketInfo, isLoading: isLoadingInfo, refetch: refetchInfo } = useReadContract({
     address: REDPACKET_CONTRACT_ADDRESS,
     abi: REDPACKET_ABI,
-    functionName: 'getRedPacketInfo',
+    functionName: 'getRedPackageInfo', // 修正函数名
     args: [BigInt(redPacketId)],
   }) as { data: RedPacketInfo | undefined, isLoading: boolean, refetch: () => void };
 
-  // 检查用户是否已领取
-  const { data: hasClaimed, refetch: refetchClaimed } = useReadContract({
+  // 检查用户是否已领取 - 修复函数名
+  const { data: hasGrabbed, refetch: refetchGrabbed } = useReadContract({
     address: REDPACKET_CONTRACT_ADDRESS,
     abi: REDPACKET_ABI,
-    functionName: 'hasClaimed',
+    functionName: 'hasUserGrabbed', // 修正函数名
     args: [BigInt(redPacketId), address || '0x0'],
     enabled: !!address,
   }) as { data: boolean | undefined, refetch: () => void };
@@ -64,12 +66,12 @@ export function ClaimRedPacket({ redPacketId, onClaimed }: ClaimRedPacketProps) 
       return;
     }
 
-    if (redPacketInfo.claimedCount >= redPacketInfo.totalCount) {
+    if (redPacketInfo.remainingCount <= BigInt(0)) {
       toast.error('红包已被抢完');
       return;
     }
 
-    if (hasClaimed) {
+    if (hasGrabbed) {
       toast.error('您已经领取过此红包');
       return;
     }
@@ -80,7 +82,7 @@ export function ClaimRedPacket({ redPacketId, onClaimed }: ClaimRedPacketProps) 
       writeContract({
         address: REDPACKET_CONTRACT_ADDRESS,
         abi: REDPACKET_ABI,
-        functionName: 'claimRedPacket',
+        functionName: 'grabRedPackage', // 修正函数名
         args: [BigInt(redPacketId)],
       });
 
@@ -106,10 +108,10 @@ export function ClaimRedPacket({ redPacketId, onClaimed }: ClaimRedPacketProps) 
       setIsClaiming(false);
       createCoinRain();
       refetchInfo();
-      refetchClaimed();
+      refetchGrabbed();
       if (onClaimed) onClaimed();
     }
-  }, [isConfirmed, hash, refetchInfo, refetchClaimed, onClaimed]);
+  }, [isConfirmed, hash, refetchInfo, refetchGrabbed, onClaimed]);
 
   useEffect(() => {
     if (error) {
@@ -137,9 +139,15 @@ export function ClaimRedPacket({ redPacketId, onClaimed }: ClaimRedPacketProps) 
     );
   }
 
-  const remainingCount = redPacketInfo.totalCount - redPacketInfo.claimedCount;
-  const isFinished = remainingCount <= 0n || !redPacketInfo.isActive;
-  const progress = Number(redPacketInfo.claimedCount) / Number(redPacketInfo.totalCount) * 100;
+  // 修复BigInt运算
+  const remainingCount = redPacketInfo.remainingCount;
+  const totalCount = redPacketInfo.totalCount;
+  const isFinished = remainingCount <= BigInt(0) || !redPacketInfo.isActive;
+  
+  // 安全的百分比计算
+  const progress = totalCount > BigInt(0) 
+    ? Number((totalCount - remainingCount) * BigInt(100) / totalCount)
+    : 0;
 
   return (
     <div className="relative max-w-md mx-auto bg-white rounded-2xl shadow-xl overflow-hidden">
@@ -186,7 +194,7 @@ export function ClaimRedPacket({ redPacketId, onClaimed }: ClaimRedPacketProps) 
               <span className="text-sm text-gray-600">总金额</span>
             </div>
             <p className="text-lg font-bold text-gray-900">
-              {formatEther(redPacketInfo.totalAmount)} ETH
+              {Number(formatEther(redPacketInfo.totalAmount)).toFixed(4)} ETH
             </p>
           </div>
           <div className="text-center">
@@ -195,7 +203,7 @@ export function ClaimRedPacket({ redPacketId, onClaimed }: ClaimRedPacketProps) 
               <span className="text-sm text-gray-600">红包数量</span>
             </div>
             <p className="text-lg font-bold text-gray-900">
-              {redPacketInfo.totalCount.toString()} 个
+              {totalCount.toString()} 个
             </p>
           </div>
         </div>
@@ -203,20 +211,31 @@ export function ClaimRedPacket({ redPacketId, onClaimed }: ClaimRedPacketProps) 
         {/* 进度条 */}
         <div className="space-y-2">
           <div className="flex justify-between text-sm text-gray-600">
-            <span>已领取 {redPacketInfo.claimedCount.toString()}/{redPacketInfo.totalCount.toString()}</span>
+            <span>已领取 {(totalCount - remainingCount).toString()}/{totalCount.toString()}</span>
             <span>{remainingCount.toString()} 个剩余</span>
           </div>
           <div className="w-full bg-gray-200 rounded-full h-2">
             <div 
               className="bg-gradient-to-r from-red-500 to-pink-500 h-2 rounded-full transition-all duration-500"
-              style={{ width: `${progress}%` }}
+              style={{ width: `${Math.min(100, Math.max(0, progress))}%` }}
             />
           </div>
         </div>
 
+        {/* 红包类型显示 */}
+        <div className="text-center">
+          <span className={`px-3 py-1 rounded-full text-sm font-medium ${
+            redPacketInfo.isEqual 
+              ? 'bg-blue-100 text-blue-800' 
+              : 'bg-purple-100 text-purple-800'
+          }`}>
+            {redPacketInfo.isEqual ? '均等红包' : '随机红包'}
+          </span>
+        </div>
+
         {/* 状态显示 */}
         <div className="text-center">
-          {hasClaimed ? (
+          {hasGrabbed ? (
             <div className="flex items-center justify-center text-green-600 bg-green-50 border border-green-200 rounded-lg p-3">
               <CheckCircle className="w-5 h-5 mr-2" />
               <span className="font-medium">您已成功领取此红包</span>
@@ -251,12 +270,12 @@ export function ClaimRedPacket({ redPacketId, onClaimed }: ClaimRedPacketProps) 
         <div className="flex items-center justify-center text-sm text-gray-500 pt-2">
           <Clock className="w-4 h-4 mr-1" />
           <span>
-            {new Date(Number(redPacketInfo.createdAt) * 1000).toLocaleString('zh-CN')}
+            {new Date(Number(redPacketInfo.createTime) * 1000).toLocaleString('zh-CN')}
           </span>
         </div>
 
         {/* 连接钱包提示 */}
-        {!isConnected && !hasClaimed && !isFinished && (
+        {!isConnected && !hasGrabbed && !isFinished && (
           <div className="text-center text-sm text-gray-500 mt-4">
             请先连接钱包以领取红包
           </div>
