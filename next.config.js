@@ -2,42 +2,38 @@
 const nextConfig = {
   reactStrictMode: true,
   swcMinify: true,
+  experimental: {
+    esmExternals: 'loose'
+  },
   webpack: (config, { isServer }) => {
-    // 修复 fallback 配置
-    config.resolve.fallback = {
-      ...config.resolve.fallback,
-      fs: false,
-      net: false,
-      tls: false,
-      crypto: false,
-    };
-
-    // 修复 Node.js polyfills
     if (!isServer) {
       config.resolve.fallback = {
         ...config.resolve.fallback,
-        buffer: require.resolve('buffer'),
-        stream: require.resolve('stream-browserify'),
-        util: require.resolve('util'),
+        fs: false,
+        net: false,
+        tls: false,
         crypto: require.resolve('crypto-browserify'),
-        assert: require.resolve('assert'),
-        http: require.resolve('stream-http'),
-        https: require.resolve('https-browserify'),
-        os: require.resolve('os-browserify/browser'),
+        stream: require.resolve('stream-browserify'),
         url: require.resolve('url'),
         zlib: require.resolve('browserify-zlib'),
+        http: require.resolve('stream-http'),
+        https: require.resolve('https-browserify'),
+        assert: require.resolve('assert'),
+        os: require.resolve('os-browserify/browser'),
+        path: require.resolve('path-browserify')
       };
     }
 
+    // 忽略 core-js 的特定模块解析问题
+    config.resolve.alias = {
+      ...config.resolve.alias,
+      'core-js/modules/es.symbol.js': false,
+      'core-js/modules/es.symbol.description.js': false,
+      'core-js/modules/es.symbol.iterator.js': false,
+      'core-js/modules/es.symbol.async-iterator.js': false,
+    };
+
     return config;
-  },
-  transpilePackages: [
-    '@rainbow-me/rainbowkit',
-    'wagmi',
-    'viem',
-  ],
-  experimental: {
-    esmExternals: 'loose',
   },
 };
 
