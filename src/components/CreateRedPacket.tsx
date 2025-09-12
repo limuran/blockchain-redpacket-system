@@ -3,7 +3,7 @@
 import { useState } from 'react';
 import { useAccount, useWriteContract, useWaitForTransactionReceipt } from 'wagmi';
 import { parseEther } from 'viem';
-import { Gift, Send, Loader2 } from 'lucide-react';
+import { Gift, Send, Loader2, Shuffle, Equal } from 'lucide-react';
 import { Button } from '@/components/ui/Button';
 import { REDPACKET_CONTRACT_ADDRESS } from '@/config/wagmi';
 import { REDPACKET_ABI } from '@/config/redpacket-abi';
@@ -19,6 +19,7 @@ export function CreateRedPacket({ onSuccess }: CreateRedPacketProps) {
     totalAmount: '',
     totalCount: '',
     message: '',
+    isEqual: false, // 新增：是否为均等红包
   });
   const [isCreating, setIsCreating] = useState(false);
 
@@ -29,10 +30,10 @@ export function CreateRedPacket({ onSuccess }: CreateRedPacketProps) {
   });
 
   const handleInputChange = (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>) => {
-    const { name, value } = e.target;
+    const { name, value, type } = e.target;
     setFormData(prev => ({
       ...prev,
-      [name]: value
+      [name]: type === 'checkbox' ? (e.target as HTMLInputElement).checked : value
     }));
   };
 
@@ -62,14 +63,25 @@ export function CreateRedPacket({ onSuccess }: CreateRedPacketProps) {
       return;
     }
 
+    // 最小金额检查
+    if (totalAmount < 0.001) {
+      toast.error('红包总金额不能少于0.001 ETH');
+      return;
+    }
+
     try {
       setIsCreating(true);
       
+      // 修正的合约调用：添加 isEqual 参数
       writeContract({
         address: REDPACKET_CONTRACT_ADDRESS,
         abi: REDPACKET_ABI,
-        functionName: 'createRedPacket',
-        args: [BigInt(totalCount), formData.message],
+        functionName: 'createRedPackage', // 注意：使用正确的函数名
+        args: [
+          BigInt(totalCount), 
+          formData.isEqual,   // 添加均等/随机参数
+          formData.message
+        ],
         value: parseEther(formData.totalAmount),
       });
 
@@ -85,9 +97,8 @@ export function CreateRedPacket({ onSuccess }: CreateRedPacketProps) {
   if (isConfirmed && hash) {
     toast.success('红包创建成功！', { id: 'create-redpacket' });
     setIsCreating(false);
-    setFormData({ totalAmount: '', totalCount: '', message: '' });
+    setFormData({ totalAmount: '', totalCount: '', message: '', isEqual: false });
     
-    // 这里可以通过事件日志获取红包ID
     if (onSuccess) {
       onSuccess(hash);
     }
@@ -124,9 +135,9 @@ export function CreateRedPacket({ onSuccess }: CreateRedPacketProps) {
               name="totalAmount"
               value={formData.totalAmount}
               onChange={handleInputChange}
-              placeholder="0.1"
-              step="0.0001"
-              min="0.0001"
+              placeholder="0.01"
+              step="0.001"
+              min="0.001"
               className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-red-500 focus:border-transparent transition-all duration-200"
               required
             />
@@ -134,6 +145,7 @@ export function CreateRedPacket({ onSuccess }: CreateRedPacketProps) {
               <span className="text-gray-500 text-sm">ETH</span>
             </div>
           </div>
+          <p className="text-xs text-gray-500">最小金额: 0.001 ETH</p>
         </div>
 
         {/* 红包数量 */}
@@ -155,11 +167,59 @@ export function CreateRedPacket({ onSuccess }: CreateRedPacketProps) {
           <p className="text-xs text-gray-500">最多可发送100个红包</p>
         </div>
 
+        {/* 红包类型选择 */}
+        <div className="space-y-3">
+          <label className="block text-sm font-medium text-gray-700">
+            红包类型 *
+          </label>
+          <div className="grid grid-cols-2 gap-3">
+            <label className={`cursor-pointer border-2 rounded-lg p-3 transition-all duration-200 ${
+              !formData.isEqual 
+                ? 'border-red-500 bg-red-50' 
+                : 'border-gray-300 hover:border-gray-400'
+            }`}>
+              <input
+                type="radio"
+                name="isEqual"
+                checked={!formData.isEqual}
+                onChange={() => setFormData(prev => ({ ...prev, isEqual: false }))}
+                className="sr-only"
+              />
+              <div className="flex items-center space-x-2">
+                <Shuffle className="w-5 h-5 text-red-500" />
+                <span className="font-medium text-gray-900">随机红包</span>
+              </div>
+              <p className="text-xs text-gray-500 mt-1">金额随机，增加惊喜</p>
+            </label>
+
+            <label className={`cursor-pointer border-2 rounded-lg p-3 transition-all duration-200 ${
+              formData.isEqual 
+                ? 'border-red-500 bg-red-50' 
+                : 'border-gray-300 hover:border-gray-400'
+            }`}>
+              <input
+                type="radio"
+                name="isEqual"
+                checked={formData.isEqual}
+                onChange={() => setFormData(prev => ({ ...prev, isEqual: true }))}
+                className="sr-only"
+              />
+              <div className="flex items-center space-x-2">
+                <Equal className="w-5 h-5 text-blue-500" />
+                <span className="font-medium text-gray-900">均等红包</span>
+              </div>
+              <p className="text-xs text-gray-500 mt-1">金额相等，公平分配</p>
+            </label>
+          </div>
+        </div>
+
         {/* 平均金额显示 */}
         {formData.totalAmount && formData.totalCount && (
           <div className="bg-yellow-50 border border-yellow-200 rounded-lg p-3">
             <p className="text-sm text-yellow-800">
-              <span className="font-medium">平均每个红包:</span> {averageAmount} ETH
+              <span className="font-medium">
+                {formData.isEqual ? '每个红包' : '平均每个红包'}:
+              </span> {averageAmount} ETH
             </p>
           </div>
         )}
@@ -175,12 +235,12 @@ export function CreateRedPacket({ onSuccess }: CreateRedPacketProps) {
             onChange={handleInputChange}
             placeholder="恭喜发财，大吉大利！"
             rows={3}
-            maxLength={100}
+            maxLength={200}
             className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-red-500 focus:border-transparent transition-all duration-200 resize-none"
             required
           />
           <p className="text-xs text-gray-500 text-right">
-            {formData.message.length}/100
+            {formData.message.length}/200
           </p>
         </div>
 
