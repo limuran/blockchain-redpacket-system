@@ -67,3 +67,5 @@ bundle-report.html
 # Temporary files
 *.tmp
 *.temp
+
+.next/
