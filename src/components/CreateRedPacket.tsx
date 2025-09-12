@@ -1,117 +1,140 @@
-'use client';
+'use client'
 
-import { useState } from 'react';
-import { useAccount, useWriteContract, useWaitForTransactionReceipt } from 'wagmi';
-import { parseEther } from 'viem';
-import { Gift, Send, Loader2, Shuffle, Equal } from 'lucide-react';
-import { Button } from '@/components/ui/Button';
-import { REDPACKET_CONTRACT_ADDRESS } from '@/config/wagmi';
-import { REDPACKET_ABI } from '@/config/redpacket-abi';
-import toast from 'react-hot-toast';
+import { useState } from 'react'
+import {
+  useAccount,
+  useWriteContract,
+  useWaitForTransactionReceipt
+} from 'wagmi'
+import { parseEther } from 'viem'
+import { Gift, Send, Loader2, Shuffle, Equal } from 'lucide-react'
+import { Button } from '@/components/ui/Button'
+import { REDPACKET_CONTRACT_ADDRESS } from '@/config/wagmi'
+import { REDPACKET_ABI } from '@/config/redpacket-abi'
+import toast from 'react-hot-toast'
 
 interface CreateRedPacketProps {
-  onSuccess?: (redPacketId: string) => void;
+  onSuccess?: (redPacketId: string) => void
+}
+
+// 安全的BigInt转换
+function safeBigInt(value: string | number): bigint {
+  try {
+    return BigInt(Math.floor(Number(value)))
+  } catch (error) {
+    console.error('BigInt conversion error:', error)
+    return BigInt(0)
+  }
 }
 
 export function CreateRedPacket({ onSuccess }: CreateRedPacketProps) {
-  const { address, isConnected } = useAccount();
+  const { address, isConnected } = useAccount()
   const [formData, setFormData] = useState({
     totalAmount: '',
     totalCount: '',
     message: '',
-    isEqual: false, // 新增：是否为均等红包
-  });
-  const [isCreating, setIsCreating] = useState(false);
+    isEqual: false
+  })
+  const [isCreating, setIsCreating] = useState(false)
 
-  const { writeContract, data: hash, error } = useWriteContract();
-  
-  const { isLoading: isConfirming, isSuccess: isConfirmed } = useWaitForTransactionReceipt({
-    hash,
-  });
+  const { writeContract, data: hash, error } = useWriteContract()
 
-  const handleInputChange = (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>) => {
-    const { name, value, type } = e.target;
-    setFormData(prev => ({
+  const { isLoading: isConfirming, isSuccess: isConfirmed } =
+    useWaitForTransactionReceipt({
+      hash
+    })
+
+  const handleInputChange = (
+    e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>
+  ) => {
+    const { name, value, type } = e.target
+    setFormData((prev) => ({
       ...prev,
-      [name]: type === 'checkbox' ? (e.target as HTMLInputElement).checked : value
-    }));
-  };
+      [name]:
+        type === 'checkbox' ? (e.target as HTMLInputElement).checked : value
+    }))
+  }
 
   const handleSubmit = async (e: React.FormEvent) => {
-    e.preventDefault();
-    
+    e.preventDefault()
+
     if (!isConnected) {
-      toast.error('请先连接钱包');
-      return;
+      toast.error('请先连接钱包')
+      return
     }
 
     if (!formData.totalAmount || !formData.totalCount || !formData.message) {
-      toast.error('请填写所有必填项');
-      return;
+      toast.error('请填写所有必填项')
+      return
     }
 
-    const totalAmount = parseFloat(formData.totalAmount);
-    const totalCount = parseInt(formData.totalCount);
+    const totalAmount = parseFloat(formData.totalAmount)
+    const totalCount = parseInt(formData.totalCount)
 
     if (totalAmount <= 0) {
-      toast.error('红包总金额必须大于0');
-      return;
+      toast.error('红包总金额必须大于0')
+      return
     }
 
     if (totalCount <= 0 || totalCount > 100) {
-      toast.error('红包数量必须在1-100之间');
-      return;
+      toast.error('红包数量必须在1-100之间')
+      return
     }
 
-    // 最小金额检查
     if (totalAmount < 0.001) {
-      toast.error('红包总金额不能少于0.001 ETH');
-      return;
+      toast.error('红包总金额不能少于0.001 ETH')
+      return
     }
 
     try {
-      setIsCreating(true);
-      
-      // 修正的合约调用：添加 isEqual 参数
+      setIsCreating(true)
+
+      // 安全的BigInt转换
+      const countBigInt = safeBigInt(totalCount)
+
       writeContract({
         address: REDPACKET_CONTRACT_ADDRESS,
         abi: REDPACKET_ABI,
-        functionName: 'createRedPackage', // 注意：使用正确的函数名
-        args: [
-          BigInt(totalCount), 
-          formData.isEqual,   // 添加均等/随机参数
-          formData.message
-        ],
-        value: parseEther(formData.totalAmount),
-      });
+        functionName: 'createRedPackage',
+        args: [countBigInt, formData.isEqual, formData.message],
+        value: parseEther(formData.totalAmount)
+      })
 
-      toast.loading('创建红包中...', { id: 'create-redpacket' });
+      toast.loading('创建红包中...', { id: 'create-redpacket' })
     } catch (err) {
-      console.error('创建红包失败:', err);
-      toast.error('创建红包失败');
-      setIsCreating(false);
+      console.error('创建红包失败:', err)
+      toast.error('创建红包失败')
+      setIsCreating(false)
     }
-  };
+  }
 
   // 监听交易确认状态
   if (isConfirmed && hash) {
-    toast.success('红包创建成功！', { id: 'create-redpacket' });
-    setIsCreating(false);
-    setFormData({ totalAmount: '', totalCount: '', message: '', isEqual: false });
-    
+    toast.success('红包创建成功！', { id: 'create-redpacket' })
+    setIsCreating(false)
+    setFormData({
+      totalAmount: '',
+      totalCount: '',
+      message: '',
+      isEqual: false
+    })
+
     if (onSuccess) {
-      onSuccess(hash);
+      onSuccess(hash)
     }
   }
 
   if (error) {
-    toast.error('交易失败: ' + error.message, { id: 'create-redpacket' });
-    setIsCreating(false);
+    toast.error('交易失败: ' + error.message, { id: 'create-redpacket' })
+    setIsCreating(false)
   }
 
-  const averageAmount = formData.totalAmount && formData.totalCount 
-    ? (parseFloat(formData.totalAmount) / parseInt(formData.totalCount)).toFixed(4)
-    : '0';
+  const averageAmount =
+    formData.totalAmount && formData.totalCount
+      ? (
+          parseFloat(formData.totalAmount) / parseInt(formData.totalCount)
+        ).toFixed(4)
+      : '0'
 
   return (
     <div className="max-w-md mx-auto bg-white rounded-2xl shadow-xl overflow-hidden">
@@ -173,16 +196,20 @@ export function CreateRedPacket({ onSuccess }: CreateRedPacketProps) {
             红包类型 *
           </label>
           <div className="grid grid-cols-2 gap-3">
-            <label className={`cursor-pointer border-2 rounded-lg p-3 transition-all duration-200 ${
-              !formData.isEqual 
-                ? 'border-red-500 bg-red-50' 
-                : 'border-gray-300 hover:border-gray-400'
-            }`}>
+            <label
+              className={`cursor-pointer border-2 rounded-lg p-3 transition-all duration-200 ${
+                !formData.isEqual
+                  ? 'border-red-500 bg-red-50'
+                  : 'border-gray-300 hover:border-gray-400'
+              }`}
+            >
               <input
                 type="radio"
                 name="isEqual"
                 checked={!formData.isEqual}
-                onChange={() => setFormData(prev => ({ ...prev, isEqual: false }))}
+                onChange={() =>
+                  setFormData((prev) => ({ ...prev, isEqual: false }))
+                }
                 className="sr-only"
               />
               <div className="flex items-center space-x-2">
@@ -192,16 +219,20 @@ export function CreateRedPacket({ onSuccess }: CreateRedPacketProps) {
               <p className="text-xs text-gray-500 mt-1">金额随机，增加惊喜</p>
             </label>
 
-            <label className={`cursor-pointer border-2 rounded-lg p-3 transition-all duration-200 ${
-              formData.isEqual 
-                ? 'border-red-500 bg-red-50' 
-                : 'border-gray-300 hover:border-gray-400'
-            }`}>
+            <label
+              className={`cursor-pointer border-2 rounded-lg p-3 transition-all duration-200 ${
+                formData.isEqual
+                  ? 'border-red-500 bg-red-50'
+                  : 'border-gray-300 hover:border-gray-400'
+              }`}
+            >
               <input
                 type="radio"
                 name="isEqual"
                 checked={formData.isEqual}
-                onChange={() => setFormData(prev => ({ ...prev, isEqual: true }))}
+                onChange={() =>
+                  setFormData((prev) => ({ ...prev, isEqual: true }))
+                }
                 className="sr-only"
               />
               <div className="flex items-center space-x-2">
@@ -219,7 +250,8 @@ export function CreateRedPacket({ onSuccess }: CreateRedPacketProps) {
             <p className="text-sm text-yellow-800">
               <span className="font-medium">
                 {formData.isEqual ? '每个红包' : '平均每个红包'}:
-              </span> {averageAmount} ETH
+              </span>{' '}
+              {averageAmount} ETH
             </p>
           </div>
         )}
@@ -271,5 +303,5 @@ export function CreateRedPacket({ onSuccess }: CreateRedPacketProps) {
         )}
       </form>
     </div>
-  );
+  )
 }

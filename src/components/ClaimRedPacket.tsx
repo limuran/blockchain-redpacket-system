@@ -1,124 +1,169 @@
-'use client';
+'use client'
 
-import { useState, useEffect } from 'react';
-import { useAccount, useWriteContract, useReadContract, useWaitForTransactionReceipt } from 'wagmi';
-import { formatEther } from 'viem';
-import { Gift, Users, Clock, Coins, AlertCircle, CheckCircle, Loader2 } from 'lucide-react';
-import { Button } from '@/components/ui/Button';
-import { REDPACKET_CONTRACT_ADDRESS } from '@/config/wagmi';
-import { REDPACKET_ABI } from '@/config/redpacket-abi';
-import { formatAddress } from '@/lib/utils';
-import toast from 'react-hot-toast';
+import { useState, useEffect } from 'react'
+import {
+  useAccount,
+  useWriteContract,
+  useReadContract,
+  useWaitForTransactionReceipt
+} from 'wagmi'
+import { formatEther } from 'viem'
+import {
+  Gift,
+  Users,
+  Clock,
+  Coins,
+  AlertCircle,
+  CheckCircle,
+  Loader2
+} from 'lucide-react'
+import { Button } from '@/components/ui/Button'
+import { REDPACKET_CONTRACT_ADDRESS } from '@/config/wagmi'
+import { REDPACKET_ABI } from '@/config/redpacket-abi'
+import { formatAddress } from '@/lib/utils'
+import toast from 'react-hot-toast'
 
 interface RedPacketInfo {
-  creator: string;
-  totalAmount: bigint;
-  remainingAmount: bigint;
-  totalCount: bigint;
-  remainingCount: bigint;
-  isEqual: boolean;
-  createTime: bigint;
-  isActive: boolean;
-  message: string;
+  creator: string
+  totalAmount: bigint
+  remainingAmount: bigint
+  totalCount: bigint
+  remainingCount: bigint
+  isEqual: boolean
+  createTime: bigint
+  isActive: boolean
+  message: string
 }
 
 interface ClaimRedPacketProps {
-  redPacketId: string;
-  onClaimed?: () => void;
+  redPacketId: string
+  onClaimed?: () => void
 }
 
-export function ClaimRedPacket({ redPacketId, onClaimed }: ClaimRedPacketProps) {
-  const { address, isConnected } = useAccount();
-  const [isClaiming, setIsClaiming] = useState(false);
-  const [coinAnimation, setCoinAnimation] = useState<number[]>([]);
+// 安全的BigInt转换
+function safeBigInt(value: string | number): bigint {
+  try {
+    return BigInt(Math.floor(Number(value)))
+  } catch (error) {
+    console.error('BigInt conversion error:', error)
+    return BigInt(0)
+  }
+}
+
+// 安全的数字转换
+function safeNumber(value: bigint): number {
+  try {
+    return Number(value.toString())
+  } catch (error) {
+    console.error('Number conversion error:', error)
+    return 0
+  }
+}
+
+export function ClaimRedPacket({
+  redPacketId,
+  onClaimed
+}: ClaimRedPacketProps) {
+  const { address, isConnected } = useAccount()
+  const [isClaiming, setIsClaiming] = useState(false)
+  const [coinAnimation, setCoinAnimation] = useState<number[]>([])
 
   // 获取红包信息
-  const { data: redPacketInfo, isLoading: isLoadingInfo, refetch: refetchInfo } = useReadContract({
+  const {
+    data: redPacketInfo,
+    isLoading: isLoadingInfo,
+    refetch: refetchInfo
+  } = useReadContract({
     address: REDPACKET_CONTRACT_ADDRESS,
     abi: REDPACKET_ABI,
     functionName: 'getRedPackageInfo',
-    args: [BigInt(redPacketId)],
-  }) as { data: RedPacketInfo | undefined, isLoading: boolean, refetch: () => void };
+    args: [safeBigInt(redPacketId)]
+  }) as {
+    data: RedPacketInfo | undefined
+    isLoading: boolean
+    refetch: () => void
+  }
 
   // 检查用户是否已领取
   const { data: hasGrabbed, refetch: refetchGrabbed } = useReadContract({
     address: REDPACKET_CONTRACT_ADDRESS,
     abi: REDPACKET_ABI,
     functionName: 'hasUserGrabbed',
-    args: [BigInt(redPacketId), address || '0x0'],
-    enabled: !!address,
-  }) as { data: boolean | undefined, refetch: () => void };
+    args: [safeBigInt(redPacketId), address || '0x0'],
+    enabled: !!address
+  }) as { data: boolean | undefined; refetch: () => void }
 
-  const { writeContract, data: hash, error } = useWriteContract();
-  
-  const { isLoading: isConfirming, isSuccess: isConfirmed } = useWaitForTransactionReceipt({
-    hash,
-  });
+  const { writeContract, data: hash, error } = useWriteContract()
+
+  const { isLoading: isConfirming, isSuccess: isConfirmed } =
+    useWaitForTransactionReceipt({
+      hash
+    })
 
   const handleClaim = async () => {
     if (!isConnected) {
-      toast.error('请先连接钱包');
-      return;
+      toast.error('请先连接钱包')
+      return
     }
 
     if (!redPacketInfo?.isActive) {
-      toast.error('红包已失效');
-      return;
+      toast.error('红包已失效')
+      return
     }
 
-    if (redPacketInfo.remainingCount <= 0n) { // 使用BigInt字面量
-      toast.error('红包已被抢完');
-      return;
+    if (safeNumber(redPacketInfo.remainingCount) <= 0) {
+      toast.error('红包已被抢完')
+      return
     }
 
     if (hasGrabbed) {
-      toast.error('您已经领取过此红包');
-      return;
+      toast.error('您已经领取过此红包')
+      return
     }
 
     try {
-      setIsClaiming(true);
-      
+      setIsClaiming(true)
+
       writeContract({
         address: REDPACKET_CONTRACT_ADDRESS,
         abi: REDPACKET_ABI,
         functionName: 'grabRedPackage',
-        args: [BigInt(redPacketId)],
-      });
+        args: [safeBigInt(redPacketId)]
+      })
 
-      toast.loading('领取红包中...', { id: 'claim-redpacket' });
+      toast.loading('领取红包中...', { id: 'claim-redpacket' })
     } catch (err) {
-      console.error('领取红包失败:', err);
-      toast.error('领取红包失败');
-      setIsClaiming(false);
+      console.error('领取红包失败:', err)
+      toast.error('领取红包失败')
+      setIsClaiming(false)
     }
-  };
+  }
 
   // 创建金币雨动画
   const createCoinRain = () => {
-    const coins = Array.from({ length: 20 }, (_, i) => Date.now() + i);
-    setCoinAnimation(coins);
-    setTimeout(() => setCoinAnimation([]), 3000);
-  };
+    const coins = Array.from({ length: 20 }, (_, i) => Date.now() + i)
+    setCoinAnimation(coins)
+    setTimeout(() => setCoinAnimation([]), 3000)
+  }
 
   // 监听交易确认状态
   useEffect(() => {
     if (isConfirmed && hash) {
-      toast.success('红包领取成功！', { id: 'claim-redpacket' });
-      setIsClaiming(false);
-      createCoinRain();
-      refetchInfo();
-      refetchGrabbed();
-      if (onClaimed) onClaimed();
+      toast.success('红包领取成功！', { id: 'claim-redpacket' })
+      setIsClaiming(false)
+      createCoinRain()
+      refetchInfo()
+      refetchGrabbed()
+      if (onClaimed) onClaimed()
     }
-  }, [isConfirmed, hash, refetchInfo, refetchGrabbed, onClaimed]);
+  }, [isConfirmed, hash, refetchInfo, refetchGrabbed, onClaimed])
 
   useEffect(() => {
     if (error) {
-      toast.error('交易失败: ' + error.message, { id: 'claim-redpacket' });
-      setIsClaiming(false);
+      toast.error('交易失败: ' + error.message, { id: 'claim-redpacket' })
+      setIsClaiming(false)
     }
-  }, [error]);
+  }, [error])
 
   if (isLoadingInfo) {
     return (
@@ -126,7 +171,7 @@ export function ClaimRedPacket({ redPacketId, onClaimed }: ClaimRedPacketProps) 
         <Loader2 className="w-8 h-8 animate-spin mx-auto mb-4 text-gray-400" />
         <p className="text-gray-500">加载红包信息中...</p>
       </div>
-    );
+    )
   }
 
   if (!redPacketInfo) {
@@ -136,17 +181,17 @@ export function ClaimRedPacket({ redPacketId, onClaimed }: ClaimRedPacketProps) 
         <h3 className="text-lg font-medium text-gray-900 mb-2">红包不存在</h3>
         <p className="text-gray-500">请检查红包ID是否正确</p>
       </div>
-    );
+    )
   }
 
-  // 修复BigInt运算 - 转换为数字进行计算
-  const remainingCount = Number(redPacketInfo.remainingCount);
-  const totalCount = Number(redPacketInfo.totalCount);
-  const claimedCount = totalCount - remainingCount;
-  const isFinished = remainingCount <= 0 || !redPacketInfo.isActive;
-  
+  // 安全的数值计算
+  const remainingCount = safeNumber(redPacketInfo.remainingCount)
+  const totalCount = safeNumber(redPacketInfo.totalCount)
+  const claimedCount = totalCount - remainingCount
+  const isFinished = remainingCount <= 0 || !redPacketInfo.isActive
+
   // 安全的百分比计算
-  const progress = totalCount > 0 ? (claimedCount / totalCount) * 100 : 0;
+  const progress = totalCount > 0 ? (claimedCount / totalCount) * 100 : 0
 
   return (
     <div className="relative max-w-md mx-auto bg-white rounded-2xl shadow-xl overflow-hidden">
@@ -158,7 +203,7 @@ export function ClaimRedPacket({ redPacketId, onClaimed }: ClaimRedPacketProps) 
           style={{
             left: `${Math.random() * 100}%`,
             animationDelay: `${index * 0.1}s`,
-            fontSize: `${Math.random() * 10 + 20}px`,
+            fontSize: `${Math.random() * 10 + 20}px`
           }}
         >
           <Coins />
@@ -166,8 +211,16 @@ export function ClaimRedPacket({ redPacketId, onClaimed }: ClaimRedPacketProps) 
       ))}
 
       {/* 红包头部 */}
-      <div className={`p-6 text-white text-center relative ${isFinished ? 'bg-gray-400' : 'redpacket-card redpacket-glow'}`}>
-        <Gift className={`w-16 h-16 mx-auto mb-3 ${!isFinished && 'animate-bounce-subtle'}`} />
+      <div
+        className={`p-6 text-white text-center relative ${
+          isFinished ? 'bg-gray-400' : 'redpacket-card redpacket-glow'
+        }`}
+      >
+        <Gift
+          className={`w-16 h-16 mx-auto mb-3 ${
+            !isFinished && 'animate-bounce-subtle'
+          }`}
+        />
         <h2 className="text-2xl font-bold mb-2">
           {isFinished ? '红包已抢完' : '红包来了'}
         </h2>
@@ -201,20 +254,20 @@ export function ClaimRedPacket({ redPacketId, onClaimed }: ClaimRedPacketProps) 
               <Users className="w-5 h-5 text-blue-500 mr-1" />
               <span className="text-sm text-gray-600">红包数量</span>
             </div>
-            <p className="text-lg font-bold text-gray-900">
-              {totalCount} 个
-            </p>
+            <p className="text-lg font-bold text-gray-900">{totalCount} 个</p>
           </div>
         </div>
 
         {/* 进度条 */}
         <div className="space-y-2">
           <div className="flex justify-between text-sm text-gray-600">
-            <span>已领取 {claimedCount}/{totalCount}</span>
+            <span>
+              已领取 {claimedCount}/{totalCount}
+            </span>
             <span>{remainingCount} 个剩余</span>
           </div>
           <div className="w-full bg-gray-200 rounded-full h-2">
-            <div 
+            <div
               className="bg-gradient-to-r from-red-500 to-pink-500 h-2 rounded-full transition-all duration-500"
               style={{ width: `${Math.min(100, Math.max(0, progress))}%` }}
             />
@@ -223,11 +276,13 @@ export function ClaimRedPacket({ redPacketId, onClaimed }: ClaimRedPacketProps) 
 
         {/* 红包类型显示 */}
         <div className="text-center">
-          <span className={`px-3 py-1 rounded-full text-sm font-medium ${
-            redPacketInfo.isEqual 
-              ? 'bg-blue-100 text-blue-800' 
-              : 'bg-purple-100 text-purple-800'
-          }`}>
+          <span
+            className={`px-3 py-1 rounded-full text-sm font-medium ${
+              redPacketInfo.isEqual
+                ? 'bg-blue-100 text-blue-800'
+                : 'bg-purple-100 text-purple-800'
+            }`}
+          >
             {redPacketInfo.isEqual ? '均等红包' : '随机红包'}
           </span>
         </div>
@@ -269,7 +324,9 @@ export function ClaimRedPacket({ redPacketId, onClaimed }: ClaimRedPacketProps) 
         <div className="flex items-center justify-center text-sm text-gray-500 pt-2">
           <Clock className="w-4 h-4 mr-1" />
           <span>
-            {new Date(Number(redPacketInfo.createTime) * 1000).toLocaleString('zh-CN')}
+            {new Date(
+              safeNumber(redPacketInfo.createTime) * 1000
+            ).toLocaleString('zh-CN')}
           </span>
         </div>
 
@@ -281,5 +338,5 @@ export function ClaimRedPacket({ redPacketId, onClaimed }: ClaimRedPacketProps) 
         )}
       </div>
     </div>
-  );
+  )
 }

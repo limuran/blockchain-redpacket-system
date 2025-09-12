@@ -21,20 +21,28 @@ const nextConfig = {
         assert: require.resolve('assert'),
         os: require.resolve('os-browserify/browser'),
         path: require.resolve('path-browserify')
-      };
+      }
     }
 
-    // 忽略 core-js 的特定模块解析问题
+    // 更全面的 core-js 处理
     config.resolve.alias = {
       ...config.resolve.alias,
       'core-js/modules/es.symbol.js': false,
       'core-js/modules/es.symbol.description.js': false,
       'core-js/modules/es.symbol.iterator.js': false,
       'core-js/modules/es.symbol.async-iterator.js': false,
-    };
+      'core-js/modules/es.promise.js': false,
+      'core-js/modules/es.array.iterator.js': false
+    }
 
-    return config;
-  },
-};
+    // 添加 BigInt 处理
+    config.resolve.fallback = {
+      ...config.resolve.fallback,
+      bigint: false
+    }
 
-module.exports = nextConfig;
+    return config
+  }
+}
+
+module.exports = nextConfig
