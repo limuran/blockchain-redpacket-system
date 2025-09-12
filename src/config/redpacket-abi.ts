@@ -1,94 +1,37 @@
 export const REDPACKET_ABI = [
   {
-    "inputs": [],
-    "name": "RedPacketCreated",
-    "type": "event",
-    "anonymous": false,
     "inputs": [
       {
-        "indexed": true,
-        "name": "creator",
-        "type": "address"
-      },
-      {
-        "indexed": true,
-        "name": "redPacketId",
+        "name": "_count",
         "type": "uint256"
       },
       {
-        "indexed": false,
-        "name": "totalAmount",
-        "type": "uint256"
-      },
-      {
-        "indexed": false,
-        "name": "totalCount",
-        "type": "uint256"
-      },
-      {
-        "indexed": false,
-        "name": "message",
-        "type": "string"
-      },
-      {
-        "indexed": false,
-        "name": "timestamp",
-        "type": "uint256"
-      }
-    ]
-  },
-  {
-    "inputs": [],
-    "name": "RedPacketClaimed",
-    "type": "event",
-    "anonymous": false,
-    "inputs": [
-      {
-        "indexed": true,
-        "name": "redPacketId",
-        "type": "uint256"
-      },
-      {
-        "indexed": true,
-        "name": "claimer",
-        "type": "address"
-      },
-      {
-        "indexed": false,
-        "name": "amount",
-        "type": "uint256"
-      },
-      {
-        "indexed": false,
-        "name": "timestamp",
-        "type": "uint256"
-      }
-    ]
-  },
-  {
-    "inputs": [
-      {
-        "name": "_totalCount",
-        "type": "uint256"
+        "name": "_isEqual", 
+        "type": "bool"
       },
       {
         "name": "_message",
         "type": "string"
       }
     ],
-    "name": "createRedPacket",
-    "outputs": [],
+    "name": "createRedPackage",
+    "outputs": [
+      {
+        "name": "",
+        "type": "uint256"
+      }
+    ],
     "stateMutability": "payable",
     "type": "function"
   },
   {
     "inputs": [
       {
-        "name": "_redPacketId",
+        "name": "_redPackageId",
         "type": "uint256"
       }
     ],
-    "name": "claimRedPacket",
+    "name": "grabRedPackage",
     "outputs": [],
     "stateMutability": "nonpayable",
     "type": "function"
@@ -96,45 +39,47 @@ export const REDPACKET_ABI = [
   {
     "inputs": [
       {
-        "name": "_redPacketId",
+        "name": "_redPackageId",
         "type": "uint256"
       }
     ],
-    "name": "getRedPacketInfo",
+    "name": "getRedPackageInfo",
     "outputs": [
       {
-        "components": [
-          {
-            "name": "creator",
-            "type": "address"
-          },
-          {
-            "name": "totalAmount",
-            "type": "uint256"
-          },
-          {
-            "name": "totalCount",
-            "type": "uint256"
-          },
-          {
-            "name": "claimedCount",
-            "type": "uint256"
-          },
-          {
-            "name": "message",
-            "type": "string"
-          },
-          {
-            "name": "createdAt",
-            "type": "uint256"
-          },
-          {
-            "name": "isActive",
-            "type": "bool"
-          }
-        ],
-        "name": "",
-        "type": "tuple"
+        "name": "creator",
+        "type": "address"
+      },
+      {
+        "name": "totalAmount",
+        "type": "uint256"
+      },
+      {
+        "name": "remainingAmount",
+        "type": "uint256"
+      },
+      {
+        "name": "totalCount",
+        "type": "uint256"
+      },
+      {
+        "name": "remainingCount",
+        "type": "uint256"
+      },
+      {
+        "name": "isEqual",
+        "type": "bool"
+      },
+      {
+        "name": "createTime",
+        "type": "uint256"
+      },
+      {
+        "name": "isActive",
+        "type": "bool"
+      },
+      {
+        "name": "message",
+        "type": "string"
       }
     ],
     "stateMutability": "view",
@@ -143,7 +88,7 @@ export const REDPACKET_ABI = [
   {
     "inputs": [
       {
-        "name": "_redPacketId",
+        "name": "_redPackageId",
         "type": "uint256"
       },
       {
@@ -151,7 +96,7 @@ export const REDPACKET_ABI = [
         "type": "address"
       }
     ],
-    "name": "hasClaimed",
+    "name": "hasUserGrabbed",
     "outputs": [
       {
         "name": "",
@@ -162,8 +107,39 @@ export const REDPACKET_ABI = [
     "type": "function"
   },
   {
+    "inputs": [
+      {
+        "name": "_redPackageId",
+        "type": "uint256"
+      }
+    ],
+    "name": "getGrabRecords",
+    "outputs": [
+      {
+        "components": [
+          {
+            "name": "grabber",
+            "type": "address"
+          },
+          {
+            "name": "amount",
+            "type": "uint256"
+          },
+          {
+            "name": "timestamp",
+            "type": "uint256"
+          }
+        ],
+        "name": "",
+        "type": "tuple[]"
+      }
+    ],
+    "stateMutability": "view",
+    "type": "function"
+  },
+  {
     "inputs": [],
-    "name": "redPacketCounter",
+    "name": "nextRedPackageId",
     "outputs": [
       {
         "name": "",
@@ -174,20 +150,72 @@ export const REDPACKET_ABI = [
     "type": "function"
   },
   {
+    "anonymous": false,
     "inputs": [
       {
-        "name": "_redPacketId",
+        "indexed": true,
+        "name": "redPackageId",
+        "type": "uint256"
+      },
+      {
+        "indexed": true,
+        "name": "creator",
+        "type": "address"
+      },
+      {
+        "indexed": false,
+        "name": "totalAmount",
+        "type": "uint256"
+      },
+      {
+        "indexed": false,
+        "name": "count",
+        "type": "uint256"
+      },
+      {
+        "indexed": false,
+        "name": "isEqual",
+        "type": "bool"
+      },
+      {
+        "indexed": false,
+        "name": "message",
+        "type": "string"
+      }
+    ],
+    "name": "RedPackageCreated",
+    "type": "event"
+  },
+  {
+    "anonymous": false,
+    "inputs": [
+      {
+        "indexed": true,
+        "name": "redPackageId",
+        "type": "uint256"
+      },
+      {
+        "indexed": true,
+        "name": "grabber",
+        "type": "address"
+      },
+      {
+        "indexed": false,
+        "name": "amount",
+        "type": "uint256"
+      },
+      {
+        "indexed": false,
+        "name": "remainingCount",
+        "type": "uint256"
+      },
+      {
+        "indexed": false,
+        "name": "remainingAmount",
         "type": "uint256"
       }
     ],
-    "name": "getClaimers",
-    "outputs": [
-      {
-        "name": "",
-        "type": "address[]"
-      }
-    ],
-    "stateMutability": "view",
-    "type": "function"
+    "name": "RedPackageGrabbed",
+    "type": "event"
   }
 ] as const;
