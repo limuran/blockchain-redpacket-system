@@ -125,6 +125,36 @@ export function DataTable({ view, userAddress }: DataTableProps) {
   const tableData = getTableData();
   const hasData = tableData.length > 0;
 
+  // 安全的BigInt处理函数
+  const safeFormatEther = (value: string | bigint) => {
+    try {
+      const bigintValue = typeof value === 'string' ? BigInt(value) : value;
+      return Number(formatEther(bigintValue)).toFixed(4);
+    } catch (error) {
+      return '0.0000';
+    }
+  };
+
+  const safeToNumber = (value: string | number | bigint) => {
+    try {
+      if (typeof value === 'bigint') return Number(value);
+      if (typeof value === 'string') return parseInt(value, 10);
+      return value;
+    } catch (error) {
+      return 0;
+    }
+  };
+
+  const calculateProgress = (claimed: string, total: string) => {
+    try {
+      const claimedNum = safeToNumber(claimed);
+      const totalNum = safeToNumber(total);
+      return totalNum > 0 ? (claimedNum / totalNum) * 100 : 0;
+    } catch (error) {
+      return 0;
+    }
+  };
+
   return (
     <div className="bg-white rounded-lg shadow overflow-hidden">
       {/* 表格头部 */}
@@ -186,52 +216,53 @@ export function DataTable({ view, userAddress }: DataTableProps) {
                     </tr>
                   </thead>
                   <tbody className="bg-white divide-y divide-gray-200">
-                    {(tableData as RedPacketData[]).map((item) => (
-                      <tr key={item.id} className="hover:bg-gray-50">
-                        <td className="px-6 py-4 whitespace-nowrap text-sm font-mono text-gray-900">
-                          #{item.id}
-                        </td>
-                        <td className="px-6 py-4 whitespace-nowrap text-sm font-mono text-gray-500">
-                          {formatAddress(item.creator)}
-                        </td>
-                        <td className="px-6 py-4 whitespace-nowrap text-sm font-semibold text-gray-900">
-                          {parseFloat(formatEther(BigInt(item.totalAmount))).toFixed(4)} ETH
-                        </td>
-                        <td className="px-6 py-4 whitespace-nowrap">
-                          <div className="flex items-center space-x-2">
-                            <div className="w-20 bg-gray-200 rounded-full h-2">
-                              <div 
-                                className="bg-red-500 h-2 rounded-full transition-all duration-300"
-                                style={{ 
-                                  width: `${(parseInt(item.claimedCount) / parseInt(item.totalCount)) * 100}%` 
-                                }}
-                              />
+                    {(tableData as RedPacketData[]).map((item) => {
+                      const progress = calculateProgress(item.claimedCount, item.totalCount);
+                      return (
+                        <tr key={item.id} className="hover:bg-gray-50">
+                          <td className="px-6 py-4 whitespace-nowrap text-sm font-mono text-gray-900">
+                            #{item.id}
+                          </td>
+                          <td className="px-6 py-4 whitespace-nowrap text-sm font-mono text-gray-500">
+                            {formatAddress(item.creator)}
+                          </td>
+                          <td className="px-6 py-4 whitespace-nowrap text-sm font-semibold text-gray-900">
+                            {safeFormatEther(item.totalAmount)} ETH
+                          </td>
+                          <td className="px-6 py-4 whitespace-nowrap">
+                            <div className="flex items-center space-x-2">
+                              <div className="w-20 bg-gray-200 rounded-full h-2">
+                                <div 
+                                  className="bg-red-500 h-2 rounded-full transition-all duration-300"
+                                  style={{ width: `${Math.min(100, Math.max(0, progress))}%` }}
+                                />
+                              </div>
+                              <span className="text-xs text-gray-500">
+                                {safeToNumber(item.claimedCount)}/{safeToNumber(item.totalCount)}
+                              </span>
                             </div>
-                            <span className="text-xs text-gray-500">
-                              {item.claimedCount}/{item.totalCount}
+                          </td>
+                          <td className="px-6 py-4 text-sm text-gray-900 max-w-xs truncate">
+                            {truncateText(item.message, 30)}
+                          </td>
+                          <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
+                            <div className="flex items-center">
+                              <Clock className="w-3 h-3 mr-1" />
+                              {new Date(parseInt(item.createdAt) * 1000).toLocaleDateString('zh-CN')}
+                            </div>
+                          </td>
+                          <td className="px-6 py-4 whitespace-nowrap">
+                            <span className={`px-2 py-1 rounded-full text-xs font-medium ${
+                              item.isActive 
+                                ? 'bg-green-100 text-green-800' 
+                                : 'bg-gray-100 text-gray-800'
+                            }`}>
+                              {item.isActive ? '活跃' : '已结束'}
                             </span>
-                          </div>
-                        </td>
-                        <td className="px-6 py-4 text-sm text-gray-900 max-w-xs truncate">
-                          {truncateText(item.message, 30)}
-                        </td>
-                        <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
-                          <div className="flex items-center">
-                            <Clock className="w-3 h-3 mr-1" />
-                            {new Date(parseInt(item.createdAt) * 1000).toLocaleDateString('zh-CN')}
-                          </div>
-                        </td>
-                        <td className="px-6 py-4 whitespace-nowrap">
-                          <span className={`px-2 py-1 rounded-full text-xs font-medium ${
-                            item.isActive 
-                              ? 'bg-green-100 text-green-800' 
-                              : 'bg-gray-100 text-gray-800'
-                          }`}>
-                            {item.isActive ? '活跃' : '已结束'}
-                          </span>
-                        </td>
-                      </tr>
-                    ))}
+                          </td>
+                        </tr>
+                      );
+                    })}
                   </tbody>
                 </>
               ) : (
@@ -268,7 +299,7 @@ export function DataTable({ view, userAddress }: DataTableProps) {
                           }
                         </td>
                         <td className="px-6 py-4 whitespace-nowrap text-sm font-semibold text-green-600">
-                          +{parseFloat(formatEther(BigInt(item.amount))).toFixed(4)} ETH
+                          +{safeFormatEther(item.amount)} ETH
                         </td>
                         <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
                           <div className="flex items-center">
