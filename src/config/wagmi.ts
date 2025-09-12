@@ -1,9 +1,10 @@
 import { getDefaultConfig } from '@rainbow-me/rainbowkit';
 import { sepolia, mainnet, polygon, optimism, arbitrum, base } from 'wagmi/chains';
-
+const projectId = process.env.NEXT_PUBLIC_WALLET_CONNECT_PROJECT_ID;
+if (!projectId) throw new Error('请设置 NEXT_PUBLIC_WALLET_CONNECT_PROJECT_ID 环境变量');
 export const config = getDefaultConfig({
   appName: 'Blockchain RedPacket',
-  projectId: 'YOUR_WALLET_CONNECT_PROJECT_ID', // 替换为你的 WalletConnect Project ID
+  projectId: projectId, // 替换为你的 WalletConnect Project ID
   chains: [
     mainnet,
     sepolia,
@@ -19,8 +20,7 @@ export const config = getDefaultConfig({
 export const REDPACKET_CONTRACT_ADDRESS = '0x2bB8eaBb0B662E4fA333A9bF119017994194107E';
 
 // The Graph 子图端点
-export const SUBGRAPH_URL = 'https://api.studio.thegraph.com/query/[your-subgraph-id]/redpacket-subgraph/version/latest';
-
+export const SUBGRAPH_URL = process.env.NEXT_PUBLIC_SUBGRAPH_URL;
 // 支持的链配置
 export const SUPPORTED_CHAINS = {
   sepolia: {
@@ -36,3 +36,4 @@ export const SUPPORTED_CHAINS = {
     explorerUrl: 'https://etherscan.io',
   }
 };
+
