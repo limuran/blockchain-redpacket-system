@@ -23,18 +23,6 @@ import { REDPACKET_ABI } from '@/config/redpacket-abi'
 import { formatAddress } from '@/lib/utils'
 import toast from 'react-hot-toast'
 
-interface RedPacketInfo {
-  creator: string
-  totalAmount: bigint
-  remainingAmount: bigint
-  totalCount: bigint
-  remainingCount: bigint
-  isEqual: boolean
-  createTime: bigint
-  isActive: boolean
-  message: string
-}
-
 interface ClaimRedPacketProps {
   redPacketId: string
   onClaimed?: () => void
@@ -51,12 +39,24 @@ function safeBigInt(value: string | number): bigint {
 }
 
 // 安全的数字转换
-function safeNumber(value: bigint): number {
+function safeNumber(value: bigint | undefined | null): number {
   try {
+    if (value === undefined || value === null) return 0
     return Number(value.toString())
   } catch (error) {
     console.error('Number conversion error:', error)
     return 0
+  }
+}
+
+// 安全的格式化ETH
+function safeFormatEther(value: bigint | undefined | null): string {
+  try {
+    if (value === undefined || value === null) return '0.0000'
+    return Number(formatEther(value)).toFixed(4)
+  } catch (error) {
+    console.error('FormatEther error:', error)
+    return '0.0000'
   }
 }
 
@@ -68,9 +68,9 @@ export function ClaimRedPacket({
   const [isClaiming, setIsClaiming] = useState(false)
   const [coinAnimation, setCoinAnimation] = useState<number[]>([])
 
-  // 获取红包信息
+  // 获取红包信息 - 注意返回的是一个数组/tuple
   const {
-    data: redPacketInfo,
+    data: rawRedPacketInfo,
     isLoading: isLoadingInfo,
     refetch: refetchInfo
   } = useReadContract({
@@ -78,11 +78,28 @@ export function ClaimRedPacket({
     abi: REDPACKET_ABI,
     functionName: 'getRedPackageInfo',
     args: [safeBigInt(redPacketId)]
-  }) as {
-    data: RedPacketInfo | undefined
-    isLoading: boolean
-    refetch: () => void
-  }
+  })
+
+  // 解析红包信息
+  const redPacketInfo = rawRedPacketInfo
+    ? {
+        creator: rawRedPacketInfo[0] as string,
+        totalAmount: rawRedPacketInfo[1] as bigint,
+        remainingAmount: rawRedPacketInfo[2] as bigint,
+        totalCount: rawRedPacketInfo[3] as bigint,
+        remainingCount: rawRedPacketInfo[4] as bigint,
+        isEqual: rawRedPacketInfo[5] as boolean,
+        createTime: rawRedPacketInfo[6] as bigint,
+        isActive: rawRedPacketInfo[7] as boolean,
+        message: rawRedPacketInfo[8] as string
+      }
+    : null
+
+  // 打印调试信息
+  useEffect(() => {
+    console.log('Raw red packet info:', rawRedPacketInfo)
+    console.log('Parsed red packet info:', redPacketInfo)
+  }, [rawRedPacketInfo, redPacketInfo])
 
   // 检查用户是否已领取
   const { data: hasGrabbed, refetch: refetchGrabbed } = useReadContract({
@@ -93,7 +110,7 @@ export function ClaimRedPacket({
     enabled: !!address
   }) as { data: boolean | undefined; refetch: () => void }
 
-  const { writeContract, data: hash, error } = useWriteContract()
+  const { writeContract, data: hash, error, reset } = useWriteContract()
 
   const { isLoading: isConfirming, isSuccess: isConfirmed } =
     useWaitForTransactionReceipt({
@@ -154,9 +171,10 @@ export function ClaimRedPacket({
       createCoinRain()
       refetchInfo()
       refetchGrabbed()
+      reset()
       if (onClaimed) onClaimed()
     }
-  }, [isConfirmed, hash, refetchInfo, refetchGrabbed, onClaimed])
+  }, [isConfirmed, hash, refetchInfo, refetchGrabbed, onClaimed, reset])
 
   useEffect(() => {
     if (error) {
@@ -174,7 +192,7 @@ export function ClaimRedPacket({
     )
   }
 
-  if (!redPacketInfo) {
+  if (!redPacketInfo || !redPacketInfo.creator) {
     return (
       <div className="max-w-md mx-auto bg-white rounded-2xl shadow-xl p-8 text-center">
         <AlertCircle className="w-12 h-12 mx-auto mb-4 text-red-400" />
@@ -234,7 +252,7 @@ export function ClaimRedPacket({
         {/* 祝福消息 */}
         <div className="text-center">
           <p className="text-lg text-gray-800 font-medium leading-relaxed">
-            "{redPacketInfo.message}"
+            "{redPacketInfo.message || '恭喜发财，大吉大利！'}"
           </p>
         </div>
 
@@ -246,7 +264,7 @@ export function ClaimRedPacket({
               <span className="text-sm text-gray-600">总金额</span>
             </div>
             <p className="text-lg font-bold text-gray-900">
-              {Number(formatEther(redPacketInfo.totalAmount)).toFixed(4)} ETH
+              {safeFormatEther(redPacketInfo.totalAmount)} ETH
             </p>
           </div>
           <div className="text-center">
@@ -324,9 +342,11 @@ export function ClaimRedPacket({
         <div className="flex items-center justify-center text-sm text-gray-500 pt-2">
           <Clock className="w-4 h-4 mr-1" />
           <span>
-            {new Date(
-              safeNumber(redPacketInfo.createTime) * 1000
-            ).toLocaleString('zh-CN')}
+            {redPacketInfo.createTime
+              ? new Date(
+                  safeNumber(redPacketInfo.createTime) * 1000
+                ).toLocaleString('zh-CN')
+              : '未知时间'}
           </span>
         </div>
 

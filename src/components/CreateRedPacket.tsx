@@ -1,6 +1,6 @@
 'use client'
 
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import {
   useAccount,
   useWriteContract,
@@ -37,12 +37,41 @@ export function CreateRedPacket({ onSuccess }: CreateRedPacketProps) {
   })
   const [isCreating, setIsCreating] = useState(false)
 
-  const { writeContract, data: hash, error } = useWriteContract()
+  const { writeContract, data: hash, error, reset } = useWriteContract()
 
   const { isLoading: isConfirming, isSuccess: isConfirmed } =
     useWaitForTransactionReceipt({
       hash
     })
+
+  // 使用 useEffect 监听交易确认状态
+  useEffect(() => {
+    if (isConfirmed && hash) {
+      toast.success('红包创建成功！', { id: 'create-redpacket' })
+      setIsCreating(false)
+      setFormData({
+        totalAmount: '',
+        totalCount: '',
+        message: '',
+        isEqual: false
+      })
+
+      // 重置 writeContract 状态
+      reset()
+
+      if (onSuccess) {
+        onSuccess(hash)
+      }
+    }
+  }, [isConfirmed, hash, onSuccess, reset])
+
+  // 使用 useEffect 处理错误
+  useEffect(() => {
+    if (error) {
+      toast.error('交易失败: ' + error.message, { id: 'create-redpacket' })
+      setIsCreating(false)
+    }
+  }, [error])
 
   const handleInputChange = (
     e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>
@@ -106,27 +135,6 @@ export function CreateRedPacket({ onSuccess }: CreateRedPacketProps) {
       toast.error('创建红包失败')
       setIsCreating(false)
     }
-  }
-
-  // 监听交易确认状态
-  if (isConfirmed && hash) {
-    toast.success('红包创建成功！', { id: 'create-redpacket' })
-    setIsCreating(false)
-    setFormData({
-      totalAmount: '',
-      totalCount: '',
-      message: '',
-      isEqual: false
-    })
-
-    if (onSuccess) {
-      onSuccess(hash)
-    }
-  }
-
-  if (error) {
-    toast.error('交易失败: ' + error.message, { id: 'create-redpacket' })
-    setIsCreating(false)
   }
 
   const averageAmount =
