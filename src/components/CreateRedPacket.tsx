@@ -4,10 +4,19 @@ import { useState, useEffect } from 'react'
 import {
   useAccount,
   useWriteContract,
-  useWaitForTransactionReceipt
+  useWaitForTransactionReceipt,
+  usePublicClient
 } from 'wagmi'
-import { parseEther } from 'viem'
-import { Gift, Send, Loader2, Shuffle, Equal } from 'lucide-react'
+import { parseEther, decodeEventLog } from 'viem'
+import {
+  Gift,
+  Send,
+  Loader2,
+  Shuffle,
+  Equal,
+  Copy,
+  CheckCircle
+} from 'lucide-react'
 import { Button } from '@/components/ui/Button'
 import { REDPACKET_CONTRACT_ADDRESS } from '@/config/wagmi'
 import { REDPACKET_ABI } from '@/config/redpacket-abi'
@@ -29,6 +38,7 @@ function safeBigInt(value: string | number): bigint {
 
 export function CreateRedPacket({ onSuccess }: CreateRedPacketProps) {
   const { address, isConnected } = useAccount()
+  const publicClient = usePublicClient()
   const [formData, setFormData] = useState({
     totalAmount: '',
     totalCount: '',
@@ -36,38 +46,90 @@ export function CreateRedPacket({ onSuccess }: CreateRedPacketProps) {
     isEqual: false
   })
   const [isCreating, setIsCreating] = useState(false)
+  const [createdRedPacketId, setCreatedRedPacketId] = useState<string | null>(
+    null
+  )
+  const [copied, setCopied] = useState(false)
 
   const { writeContract, data: hash, error, reset } = useWriteContract()
 
-  const { isLoading: isConfirming, isSuccess: isConfirmed } =
-    useWaitForTransactionReceipt({
-      hash
-    })
+  const {
+    isLoading: isConfirming,
+    isSuccess: isConfirmed,
+    data: receipt
+  } = useWaitForTransactionReceipt({
+    hash
+  })
 
-  // 使用 useEffect 监听交易确认状态
+  // 从交易回执中解析红包ID
   useEffect(() => {
-    if (isConfirmed && hash) {
-      toast.success('红包创建成功！', { id: 'create-redpacket' })
-      setIsCreating(false)
-      setFormData({
-        totalAmount: '',
-        totalCount: '',
-        message: '',
-        isEqual: false
-      })
+    const parseRedPacketId = async () => {
+      if (isConfirmed && receipt && publicClient) {
+        console.log('Transaction receipt:', receipt)
 
-      // 重置 writeContract 状态
-      reset()
+        try {
+          // 从事件日志中解析红包ID
+          const logs = receipt.logs
+          for (const log of logs) {
+            try {
+              const decodedLog = decodeEventLog({
+                abi: REDPACKET_ABI,
+                data: log.data,
+                topics: log.topics
+              })
 
-      if (onSuccess) {
-        onSuccess(hash)
+              console.log('Decoded log:', decodedLog)
+
+              if (decodedLog.eventName === 'RedPackageCreated') {
+                const redPacketId = (decodedLog.args as any).redPackageId
+                const redPacketIdStr = redPacketId.toString()
+
+                console.log('Created red packet ID:', redPacketIdStr)
+                setCreatedRedPacketId(redPacketIdStr)
+
+                toast.success(
+                  <div>
+                    <div>红包创建成功！</div>
+                    <div className="text-sm mt-1">
+                      红包ID: #{redPacketIdStr}
+                    </div>
+                  </div>,
+                  { id: 'create-redpacket', duration: 5000 }
+                )
+
+                // 重置表单
+                setFormData({
+                  totalAmount: '',
+                  totalCount: '',
+                  message: '',
+                  isEqual: false
+                })
+                setIsCreating(false)
+                reset()
+
+                if (onSuccess) {
+                  onSuccess(redPacketIdStr)
+                }
+
+                break
+              }
+            } catch (err) {
+              console.error('Error decoding log:', err)
+            }
+          }
+        } catch (err) {
+          console.error('Error parsing red packet ID:', err)
+        }
       }
     }
-  }, [isConfirmed, hash, onSuccess, reset])
 
-  // 使用 useEffect 处理错误
+    parseRedPacketId()
+  }, [isConfirmed, receipt, publicClient, onSuccess, reset])
+
+  // 错误处理
   useEffect(() => {
     if (error) {
+      console.error('Transaction error:', error)
       toast.error('交易失败: ' + error.message, { id: 'create-redpacket' })
       setIsCreating(false)
     }
@@ -117,9 +179,17 @@ export function CreateRedPacket({ onSuccess }: CreateRedPacketProps) {
 
     try {
       setIsCreating(true)
+      setCreatedRedPacketId(null) // 重置之前的ID
 
       // 安全的BigInt转换
       const countBigInt = safeBigInt(totalCount)
+
+      console.log('Creating red packet:', {
+        count: countBigInt.toString(),
+        isEqual: formData.isEqual,
+        message: formData.message,
+        value: formData.totalAmount
+      })
 
       writeContract({
         address: REDPACKET_CONTRACT_ADDRESS,
@@ -137,6 +207,16 @@ export function CreateRedPacket({ onSuccess }: CreateRedPacketProps) {
     }
   }
 
+  const copyRedPacketLink = () => {
+    if (createdRedPacketId) {
+      const link = `${window.location.origin}/claim/${createdRedPacketId}`
+      navigator.clipboard.writeText(link)
+      setCopied(true)
+      setTimeout(() => setCopied(false), 2000)
+      toast.success('红包链接已复制')
+    }
+  }
+
   const averageAmount =
     formData.totalAmount && formData.totalCount
       ? (
@@ -145,171 +225,226 @@ export function CreateRedPacket({ onSuccess }: CreateRedPacketProps) {
       : '0'
 
   return (
-    <div className="max-w-md mx-auto bg-white rounded-2xl shadow-xl overflow-hidden">
-      {/* 头部 */}
-      <div className="redpacket-card p-6 text-white text-center">
-        <Gift className="w-12 h-12 mx-auto mb-3 animate-bounce-subtle" />
-        <h2 className="text-2xl font-bold mb-2">发送红包</h2>
-        <p className="text-red-100 text-sm">分享你的祝福给朋友们</p>
-      </div>
+    <div className="max-w-md mx-auto">
+      {/* 显示创建成功的红包ID */}
+      {createdRedPacketId && (
+        <div className="mb-4 p-4 bg-green-50 border border-green-200 rounded-lg">
+          <div className="flex items-center justify-between">
+            <div>
+              <p className="text-sm text-green-800 font-medium">
+                红包创建成功！
+              </p>
+              <p className="text-lg font-bold text-green-900 mt-1">
+                红包ID: #{createdRedPacketId}
+              </p>
+            </div>
+            <Button
+              onClick={copyRedPacketLink}
+              variant="outline"
+              size="sm"
+              className="flex items-center gap-2"
+            >
+              {copied ? (
+                <>
+                  <CheckCircle className="w-4 h-4" />
+                  已复制
+                </>
+              ) : (
+                <>
+                  <Copy className="w-4 h-4" />
+                  复制链接
+                </>
+              )}
+            </Button>
+          </div>
+          <div className="mt-3 flex gap-2">
+            <Button
+              onClick={() =>
+                (window.location.href = `/claim/${createdRedPacketId}`)
+              }
+              size="sm"
+              className="flex-1"
+            >
+              查看红包
+            </Button>
+            <Button
+              onClick={() => setCreatedRedPacketId(null)}
+              variant="outline"
+              size="sm"
+              className="flex-1"
+            >
+              继续创建
+            </Button>
+          </div>
+        </div>
+      )}
 
-      {/* 表单 */}
-      <form onSubmit={handleSubmit} className="p-6 space-y-6">
-        {/* 红包总金额 */}
-        <div className="space-y-2">
-          <label className="block text-sm font-medium text-gray-700">
-            红包总金额 (ETH) *
-          </label>
-          <div className="relative">
+      <div className="bg-white rounded-2xl shadow-xl overflow-hidden">
+        {/* 头部 */}
+        <div className="redpacket-card p-6 text-white text-center">
+          <Gift className="w-12 h-12 mx-auto mb-3 animate-bounce-subtle" />
+          <h2 className="text-2xl font-bold mb-2">发送红包</h2>
+          <p className="text-red-100 text-sm">分享你的祝福给朋友们</p>
+        </div>
+
+        {/* 表单 */}
+        <form onSubmit={handleSubmit} className="p-6 space-y-6">
+          {/* 红包总金额 */}
+          <div className="space-y-2">
+            <label className="block text-sm font-medium text-gray-700">
+              红包总金额 (ETH) *
+            </label>
+            <div className="relative">
+              <input
+                type="number"
+                name="totalAmount"
+                value={formData.totalAmount}
+                onChange={handleInputChange}
+                placeholder="0.01"
+                step="0.001"
+                min="0.001"
+                className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-red-500 focus:border-transparent transition-all duration-200"
+                required
+              />
+              <div className="absolute inset-y-0 right-0 flex items-center pr-3">
+                <span className="text-gray-500 text-sm">ETH</span>
+              </div>
+            </div>
+            <p className="text-xs text-gray-500">最小金额: 0.001 ETH</p>
+          </div>
+
+          {/* 红包数量 */}
+          <div className="space-y-2">
+            <label className="block text-sm font-medium text-gray-700">
+              红包数量 *
+            </label>
             <input
               type="number"
-              name="totalAmount"
-              value={formData.totalAmount}
+              name="totalCount"
+              value={formData.totalCount}
               onChange={handleInputChange}
-              placeholder="0.01"
-              step="0.001"
-              min="0.001"
+              placeholder="10"
+              min="1"
+              max="100"
               className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-red-500 focus:border-transparent transition-all duration-200"
               required
             />
-            <div className="absolute inset-y-0 right-0 flex items-center pr-3">
-              <span className="text-gray-500 text-sm">ETH</span>
+            <p className="text-xs text-gray-500">最多可发送100个红包</p>
+          </div>
+
+          {/* 红包类型选择 */}
+          <div className="space-y-3">
+            <label className="block text-sm font-medium text-gray-700">
+              红包类型 *
+            </label>
+            <div className="grid grid-cols-2 gap-3">
+              <label
+                className={`cursor-pointer border-2 rounded-lg p-3 transition-all duration-200 ${
+                  !formData.isEqual
+                    ? 'border-red-500 bg-red-50'
+                    : 'border-gray-300 hover:border-gray-400'
+                }`}
+              >
+                <input
+                  type="radio"
+                  name="isEqual"
+                  checked={!formData.isEqual}
+                  onChange={() =>
+                    setFormData((prev) => ({ ...prev, isEqual: false }))
+                  }
+                  className="sr-only"
+                />
+                <div className="flex items-center space-x-2">
+                  <Shuffle className="w-5 h-5 text-red-500" />
+                  <span className="font-medium text-gray-900">随机红包</span>
+                </div>
+                <p className="text-xs text-gray-500 mt-1">金额随机，增加惊喜</p>
+              </label>
+
+              <label
+                className={`cursor-pointer border-2 rounded-lg p-3 transition-all duration-200 ${
+                  formData.isEqual
+                    ? 'border-red-500 bg-red-50'
+                    : 'border-gray-300 hover:border-gray-400'
+                }`}
+              >
+                <input
+                  type="radio"
+                  name="isEqual"
+                  checked={formData.isEqual}
+                  onChange={() =>
+                    setFormData((prev) => ({ ...prev, isEqual: true }))
+                  }
+                  className="sr-only"
+                />
+                <div className="flex items-center space-x-2">
+                  <Equal className="w-5 h-5 text-blue-500" />
+                  <span className="font-medium text-gray-900">均等红包</span>
+                </div>
+                <p className="text-xs text-gray-500 mt-1">金额相等，公平分配</p>
+              </label>
             </div>
           </div>
-          <p className="text-xs text-gray-500">最小金额: 0.001 ETH</p>
-        </div>
 
-        {/* 红包数量 */}
-        <div className="space-y-2">
-          <label className="block text-sm font-medium text-gray-700">
-            红包数量 *
-          </label>
-          <input
-            type="number"
-            name="totalCount"
-            value={formData.totalCount}
-            onChange={handleInputChange}
-            placeholder="10"
-            min="1"
-            max="100"
-            className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-red-500 focus:border-transparent transition-all duration-200"
-            required
-          />
-          <p className="text-xs text-gray-500">最多可发送100个红包</p>
-        </div>
+          {/* 平均金额显示 */}
+          {formData.totalAmount && formData.totalCount && (
+            <div className="bg-yellow-50 border border-yellow-200 rounded-lg p-3">
+              <p className="text-sm text-yellow-800">
+                <span className="font-medium">
+                  {formData.isEqual ? '每个红包' : '平均每个红包'}:
+                </span>{' '}
+                {averageAmount} ETH
+              </p>
+            </div>
+          )}
 
-        {/* 红包类型选择 */}
-        <div className="space-y-3">
-          <label className="block text-sm font-medium text-gray-700">
-            红包类型 *
-          </label>
-          <div className="grid grid-cols-2 gap-3">
-            <label
-              className={`cursor-pointer border-2 rounded-lg p-3 transition-all duration-200 ${
-                !formData.isEqual
-                  ? 'border-red-500 bg-red-50'
-                  : 'border-gray-300 hover:border-gray-400'
-              }`}
-            >
-              <input
-                type="radio"
-                name="isEqual"
-                checked={!formData.isEqual}
-                onChange={() =>
-                  setFormData((prev) => ({ ...prev, isEqual: false }))
-                }
-                className="sr-only"
-              />
-              <div className="flex items-center space-x-2">
-                <Shuffle className="w-5 h-5 text-red-500" />
-                <span className="font-medium text-gray-900">随机红包</span>
-              </div>
-              <p className="text-xs text-gray-500 mt-1">金额随机，增加惊喜</p>
+          {/* 祝福消息 */}
+          <div className="space-y-2">
+            <label className="block text-sm font-medium text-gray-700">
+              祝福消息 *
             </label>
-
-            <label
-              className={`cursor-pointer border-2 rounded-lg p-3 transition-all duration-200 ${
-                formData.isEqual
-                  ? 'border-red-500 bg-red-50'
-                  : 'border-gray-300 hover:border-gray-400'
-              }`}
-            >
-              <input
-                type="radio"
-                name="isEqual"
-                checked={formData.isEqual}
-                onChange={() =>
-                  setFormData((prev) => ({ ...prev, isEqual: true }))
-                }
-                className="sr-only"
-              />
-              <div className="flex items-center space-x-2">
-                <Equal className="w-5 h-5 text-blue-500" />
-                <span className="font-medium text-gray-900">均等红包</span>
-              </div>
-              <p className="text-xs text-gray-500 mt-1">金额相等，公平分配</p>
-            </label>
-          </div>
-        </div>
-
-        {/* 平均金额显示 */}
-        {formData.totalAmount && formData.totalCount && (
-          <div className="bg-yellow-50 border border-yellow-200 rounded-lg p-3">
-            <p className="text-sm text-yellow-800">
-              <span className="font-medium">
-                {formData.isEqual ? '每个红包' : '平均每个红包'}:
-              </span>{' '}
-              {averageAmount} ETH
+            <textarea
+              name="message"
+              value={formData.message}
+              onChange={handleInputChange}
+              placeholder="恭喜发财，大吉大利！"
+              rows={3}
+              maxLength={200}
+              className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-red-500 focus:border-transparent transition-all duration-200 resize-none"
+              required
+            />
+            <p className="text-xs text-gray-500 text-right">
+              {formData.message.length}/200
             </p>
           </div>
-        )}
 
-        {/* 祝福消息 */}
-        <div className="space-y-2">
-          <label className="block text-sm font-medium text-gray-700">
-            祝福消息 *
-          </label>
-          <textarea
-            name="message"
-            value={formData.message}
-            onChange={handleInputChange}
-            placeholder="恭喜发财，大吉大利！"
-            rows={3}
-            maxLength={200}
-            className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-red-500 focus:border-transparent transition-all duration-200 resize-none"
-            required
-          />
-          <p className="text-xs text-gray-500 text-right">
-            {formData.message.length}/200
-          </p>
-        </div>
+          {/* 提交按钮 */}
+          <Button
+            type="submit"
+            disabled={!isConnected || isCreating || isConfirming}
+            className="w-full bg-gradient-to-r from-red-500 to-pink-500 hover:from-red-600 hover:to-pink-600 text-white font-medium py-3 rounded-lg transition-all duration-200 transform hover:scale-105 disabled:transform-none disabled:opacity-50"
+          >
+            {isCreating || isConfirming ? (
+              <>
+                <Loader2 className="w-5 h-5 mr-2 animate-spin" />
+                {isConfirming ? '确认中...' : '创建中...'}
+              </>
+            ) : (
+              <>
+                <Send className="w-5 h-5 mr-2" />
+                发送红包
+              </>
+            )}
+          </Button>
 
-        {/* 提交按钮 */}
-        <Button
-          type="submit"
-          disabled={!isConnected || isCreating || isConfirming}
-          className="w-full bg-gradient-to-r from-red-500 to-pink-500 hover:from-red-600 hover:to-pink-600 text-white font-medium py-3 rounded-lg transition-all duration-200 transform hover:scale-105 disabled:transform-none disabled:opacity-50"
-        >
-          {isCreating || isConfirming ? (
-            <>
-              <Loader2 className="w-5 h-5 mr-2 animate-spin" />
-              {isConfirming ? '确认中...' : '创建中...'}
-            </>
-          ) : (
-            <>
-              <Send className="w-5 h-5 mr-2" />
-              发送红包
-            </>
+          {/* 连接钱包提示 */}
+          {!isConnected && (
+            <div className="text-center text-sm text-gray-500 mt-4">
+              请先连接钱包以发送红包
+            </div>
           )}
-        </Button>
-
-        {/* 连接钱包提示 */}
-        {!isConnected && (
-          <div className="text-center text-sm text-gray-500 mt-4">
-            请先连接钱包以发送红包
-          </div>
-        )}
-      </form>
+        </form>
+      </div>
     </div>
   )
 }

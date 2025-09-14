@@ -28,38 +28,6 @@ interface ClaimRedPacketProps {
   onClaimed?: () => void
 }
 
-// 安全的BigInt转换
-function safeBigInt(value: string | number): bigint {
-  try {
-    return BigInt(Math.floor(Number(value)))
-  } catch (error) {
-    console.error('BigInt conversion error:', error)
-    return BigInt(0)
-  }
-}
-
-// 安全的数字转换
-function safeNumber(value: bigint | undefined | null): number {
-  try {
-    if (value === undefined || value === null) return 0
-    return Number(value.toString())
-  } catch (error) {
-    console.error('Number conversion error:', error)
-    return 0
-  }
-}
-
-// 安全的格式化ETH
-function safeFormatEther(value: bigint | undefined | null): string {
-  try {
-    if (value === undefined || value === null) return '0.0000'
-    return Number(formatEther(value)).toFixed(4)
-  } catch (error) {
-    console.error('FormatEther error:', error)
-    return '0.0000'
-  }
-}
-
 export function ClaimRedPacket({
   redPacketId,
   onClaimed
@@ -68,46 +36,48 @@ export function ClaimRedPacket({
   const [isClaiming, setIsClaiming] = useState(false)
   const [coinAnimation, setCoinAnimation] = useState<number[]>([])
 
-  // 获取红包信息 - 注意返回的是一个数组/tuple
+  // 验证红包ID
+  const isValidId =
+    redPacketId && !isNaN(Number(redPacketId)) && Number(redPacketId) > 0
+  const redPacketIdBigInt = isValidId ? BigInt(redPacketId) : BigInt(0)
+
+  // 获取红包信息
   const {
     data: rawRedPacketInfo,
     isLoading: isLoadingInfo,
+    error: errorInfo,
     refetch: refetchInfo
   } = useReadContract({
     address: REDPACKET_CONTRACT_ADDRESS,
     abi: REDPACKET_ABI,
     functionName: 'getRedPackageInfo',
-    args: [safeBigInt(redPacketId)]
+    args: [redPacketIdBigInt],
+    enabled: isValidId
   })
 
   // 解析红包信息
-  const redPacketInfo = rawRedPacketInfo
-    ? {
-        creator: rawRedPacketInfo[0] as string,
-        totalAmount: rawRedPacketInfo[1] as bigint,
-        remainingAmount: rawRedPacketInfo[2] as bigint,
-        totalCount: rawRedPacketInfo[3] as bigint,
-        remainingCount: rawRedPacketInfo[4] as bigint,
-        isEqual: rawRedPacketInfo[5] as boolean,
-        createTime: rawRedPacketInfo[6] as bigint,
-        isActive: rawRedPacketInfo[7] as boolean,
-        message: rawRedPacketInfo[8] as string
-      }
-    : null
-
-  // 打印调试信息
-  useEffect(() => {
-    console.log('Raw red packet info:', rawRedPacketInfo)
-    console.log('Parsed red packet info:', redPacketInfo)
-  }, [rawRedPacketInfo, redPacketInfo])
+  const redPacketInfo =
+    rawRedPacketInfo && Array.isArray(rawRedPacketInfo)
+      ? {
+          creator: rawRedPacketInfo[0] as string,
+          totalAmount: rawRedPacketInfo[1] as bigint,
+          remainingAmount: rawRedPacketInfo[2] as bigint,
+          totalCount: rawRedPacketInfo[3] as bigint,
+          remainingCount: rawRedPacketInfo[4] as bigint,
+          isEqual: rawRedPacketInfo[5] as boolean,
+          createTime: rawRedPacketInfo[6] as bigint,
+          isActive: rawRedPacketInfo[7] as boolean,
+          message: rawRedPacketInfo[8] as string
+        }
+      : null
 
   // 检查用户是否已领取
   const { data: hasGrabbed, refetch: refetchGrabbed } = useReadContract({
     address: REDPACKET_CONTRACT_ADDRESS,
     abi: REDPACKET_ABI,
     functionName: 'hasUserGrabbed',
-    args: [safeBigInt(redPacketId), address || '0x0'],
-    enabled: !!address
+    args: [redPacketIdBigInt, address || '0x0'],
+    enabled: !!address && isValidId
   }) as { data: boolean | undefined; refetch: () => void }
 
   const { writeContract, data: hash, error, reset } = useWriteContract()
@@ -128,7 +98,8 @@ export function ClaimRedPacket({
       return
     }
 
-    if (safeNumber(redPacketInfo.remainingCount) <= 0) {
+    const remainingCount = Number(redPacketInfo.remainingCount || 0)
+    if (remainingCount <= 0) {
       toast.error('红包已被抢完')
       return
     }
@@ -145,7 +116,7 @@ export function ClaimRedPacket({
         address: REDPACKET_CONTRACT_ADDRESS,
         abi: REDPACKET_ABI,
         functionName: 'grabRedPackage',
-        args: [safeBigInt(redPacketId)]
+        args: [redPacketIdBigInt]
       })
 
       toast.loading('领取红包中...', { id: 'claim-redpacket' })
@@ -183,6 +154,17 @@ export function ClaimRedPacket({
     }
   }, [error])
 
+  // 处理无效ID
+  if (!isValidId) {
+    return (
+      <div className="max-w-md mx-auto bg-white rounded-2xl shadow-xl p-8 text-center">
+        <AlertCircle className="w-12 h-12 mx-auto mb-4 text-red-400" />
+        <h3 className="text-lg font-medium text-gray-900 mb-2">无效的红包ID</h3>
+        <p className="text-gray-500">红包ID必须是有效的数字</p>
+      </div>
+    )
+  }
+
   if (isLoadingInfo) {
     return (
       <div className="max-w-md mx-auto bg-white rounded-2xl shadow-xl p-8 text-center">
@@ -192,24 +174,43 @@ export function ClaimRedPacket({
     )
   }
 
-  if (!redPacketInfo || !redPacketInfo.creator) {
+  if (
+    !redPacketInfo ||
+    !redPacketInfo.creator ||
+    redPacketInfo.creator === '0x0000000000000000000000000000000000000000'
+  ) {
     return (
       <div className="max-w-md mx-auto bg-white rounded-2xl shadow-xl p-8 text-center">
         <AlertCircle className="w-12 h-12 mx-auto mb-4 text-red-400" />
         <h3 className="text-lg font-medium text-gray-900 mb-2">红包不存在</h3>
-        <p className="text-gray-500">请检查红包ID是否正确</p>
+        <p className="text-gray-500">红包ID #{redPacketId} 不存在或未创建</p>
+        <Button
+          onClick={() => (window.location.href = '/')}
+          className="mt-4"
+          variant="outline"
+        >
+          返回首页
+        </Button>
       </div>
     )
   }
 
   // 安全的数值计算
-  const remainingCount = safeNumber(redPacketInfo.remainingCount)
-  const totalCount = safeNumber(redPacketInfo.totalCount)
+  const totalCount = Number(redPacketInfo.totalCount || 0)
+  const remainingCount = Number(redPacketInfo.remainingCount || 0)
   const claimedCount = totalCount - remainingCount
   const isFinished = remainingCount <= 0 || !redPacketInfo.isActive
-
-  // 安全的百分比计算
   const progress = totalCount > 0 ? (claimedCount / totalCount) * 100 : 0
+
+  // 安全的格式化
+  const formatAmount = (amount: bigint | undefined) => {
+    try {
+      if (!amount) return '0.0000'
+      return Number(formatEther(amount)).toFixed(4)
+    } catch {
+      return '0.0000'
+    }
+  }
 
   return (
     <div className="relative max-w-md mx-auto bg-white rounded-2xl shadow-xl overflow-hidden">
@@ -264,7 +265,7 @@ export function ClaimRedPacket({
               <span className="text-sm text-gray-600">总金额</span>
             </div>
             <p className="text-lg font-bold text-gray-900">
-              {safeFormatEther(redPacketInfo.totalAmount)} ETH
+              {formatAmount(redPacketInfo.totalAmount)} ETH
             </p>
           </div>
           <div className="text-center">
@@ -344,7 +345,7 @@ export function ClaimRedPacket({
           <span>
             {redPacketInfo.createTime
               ? new Date(
-                  safeNumber(redPacketInfo.createTime) * 1000
+                  Number(redPacketInfo.createTime) * 1000
                 ).toLocaleString('zh-CN')
               : '未知时间'}
           </span>
