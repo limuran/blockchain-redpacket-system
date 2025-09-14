@@ -21,9 +21,9 @@
     "@babel/core": "^7.28.4",
     "@babel/preset-env": "^7.28.3",
     "@babel/preset-react": "^7.27.1",
-    "@rainbow-me/rainbowkit": "^2.0.0",
+    "@rainbow-me/rainbowkit": "^2.1.7",
     "@tanstack/react-query": "^5.28.6",
-    "@wagmi/core": "^2.6.5",
+    "@wagmi/core": "^2.14.6",
     "assert": "^2.1.0",
     "browserify-zlib": "^0.2.0",
     "buffer": "^6.0.3",
@@ -46,8 +46,8 @@
     "tailwind-merge": "^2.2.0",
     "url": "^0.11.4",
     "util": "^0.12.5",
-    "viem": "2.7.15",
-    "wagmi": "^2.5.7"
+    "viem": "^2.21.54",
+    "wagmi": "^2.12.36"
   },
   "devDependencies": {
     "@nomicfoundation/hardhat-toolbox": "^6.1.0",

@@ -94,24 +94,26 @@ export function EventListener({
     [onRedPacketClaimed]
   )
 
-  // 监听红包创建事件
+  // 监听红包创建事件 - 修复：不使用 fromBlock
   useWatchContractEvent({
     address: REDPACKET_CONTRACT_ADDRESS,
     abi: REDPACKET_ABI,
     eventName: 'RedPackageCreated',
     onLogs: handleRedPacketCreated,
-    pollingInterval: 12000,
-    fromBlock: 'latest'
+    // 移除 fromBlock: 'latest'，让 wagmi 使用默认值
+    poll: true,
+    pollingInterval: 12_000
   })
 
-  // 监听红包领取事件
+  // 监听红包领取事件 - 修复：不使用 fromBlock
   useWatchContractEvent({
     address: REDPACKET_CONTRACT_ADDRESS,
     abi: REDPACKET_ABI,
     eventName: 'RedPackageGrabbed',
     onLogs: handleRedPacketGrabbed,
-    pollingInterval: 12000,
-    fromBlock: 'latest'
+    // 移除 fromBlock: 'latest'，让 wagmi 使用默认值
+    poll: true,
+    pollingInterval: 12_000
   })
 
   return null
@@ -161,11 +163,11 @@ export function useRedPacketEvents(
     [enabled]
   )
 
-  // 构建安全的监听参数
+  // 构建安全的监听参数 - 确保 BigInt 类型正确
   const watchArgs =
     redPacketId && enabled
       ? {
-          redPackageId: safeBigInt(redPacketId)
+          redPackageId: BigInt(redPacketId) // 直接使用 BigInt 构造函数
         }
       : undefined
 
@@ -176,7 +178,8 @@ export function useRedPacketEvents(
     args: watchArgs,
     onLogs: handleGrabEvent,
     enabled: enabled && !!redPacketId,
-    pollingInterval: 15000,
-    fromBlock: 'latest'
+    // 移除 fromBlock: 'latest'
+    poll: true,
+    pollingInterval: 15_000
   })
 }
