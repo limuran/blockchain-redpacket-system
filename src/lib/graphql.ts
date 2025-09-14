@@ -10,23 +10,33 @@ export const client = new ApolloClient({
 // GraphQL查询定义
 export const GET_REDPACKETS = gql`
   query GetRedPackets($first: Int!, $skip: Int!, $orderBy: String, $orderDirection: String) {
-    redPackets(
+    redPackageEntities(
       first: $first
       skip: $skip
       orderBy: $orderBy
       orderDirection: $orderDirection
     ) {
       id
-      creator
-      totalAmount
-      totalCount
-      claimedCount
-      message
-      createdAt
-      isActive
-      claims {
+      creator {
         id
-        claimer
+        address
+      }
+      totalAmount
+      remainingAmount
+      totalCount
+      remainingCount
+      isEqual
+      createTime
+      isActive
+      message
+      blockNumber
+      transactionHash
+      grabRecords {
+        id
+        grabber {
+          id
+          address
+        }
         amount
         timestamp
       }
@@ -36,18 +46,28 @@ export const GET_REDPACKETS = gql`
 
 export const GET_REDPACKET_BY_ID = gql`
   query GetRedPacketById($id: ID!) {
-    redPacket(id: $id) {
+    redPackageEntity(id: $id) {
       id
-      creator
-      totalAmount
-      totalCount
-      claimedCount
-      message
-      createdAt
-      isActive
-      claims {
+      creator {
         id
-        claimer
+        address
+      }
+      totalAmount
+      remainingAmount
+      totalCount
+      remainingCount
+      isEqual
+      createTime
+      isActive
+      message
+      blockNumber
+      transactionHash
+      grabRecords {
+        id
+        grabber {
+          id
+          address
+        }
         amount
         timestamp
       }
@@ -57,64 +77,88 @@ export const GET_REDPACKET_BY_ID = gql`
 
 export const GET_USER_REDPACKETS = gql`
   query GetUserRedPackets($creator: String!, $first: Int!, $skip: Int!) {
-    redPackets(
+    redPackageEntities(
       where: { creator: $creator }
       first: $first
       skip: $skip
-      orderBy: createdAt
+      orderBy: createTime
       orderDirection: desc
     ) {
       id
-      creator
+      creator {
+        id
+        address
+      }
       totalAmount
+      remainingAmount
       totalCount
-      claimedCount
-      message
-      createdAt
+      remainingCount
+      isEqual
+      createTime
       isActive
+      message
+      blockNumber
+      transactionHash
     }
   }
 `;
 
 export const GET_USER_CLAIMS = gql`
-  query GetUserClaims($claimer: String!, $first: Int!, $skip: Int!) {
-    claims(
-      where: { claimer: $claimer }
+  query GetUserClaims($grabber: String!, $first: Int!, $skip: Int!) {
+    grabRecords(
+      where: { grabber: $grabber }
       first: $first
       skip: $skip
       orderBy: timestamp
       orderDirection: desc
     ) {
       id
-      redPacket {
+      redPackage {
         id
-        creator
+        creator {
+          id
+          address
+        }
         message
+        totalAmount
       }
-      claimer
+      grabber {
+        id
+        address
+      }
       amount
       timestamp
+      blockNumber
+      transactionHash
     }
   }
 `;
 
 export const GET_RECENT_ACTIVITIES = gql`
   query GetRecentActivities($first: Int!) {
-    claims(
+    grabRecords(
       first: $first
       orderBy: timestamp
       orderDirection: desc
     ) {
       id
-      redPacket {
+      redPackage {
         id
-        creator
+        creator {
+          id
+          address
+        }
         message
         totalAmount
       }
-      claimer
+      grabber {
+        id
+          address
+      }
       amount
       timestamp
+      blockNumber
+      transactionHash
     }
   }
 `;
@@ -122,14 +166,14 @@ export const GET_RECENT_ACTIVITIES = gql`
 // 统计查询
 export const GET_STATISTICS = gql`
   query GetStatistics {
-    redPackets(first: 1000) {
+    redPackageEntities(first: 1000) {
       id
       totalAmount
       totalCount
-      claimedCount
-      createdAt
+      remainingCount
+      createTime
     }
-    claims(first: 1000) {
+    grabRecords(first: 1000) {
       id
       amount
       timestamp
@@ -137,41 +181,47 @@ export const GET_STATISTICS = gql`
   }
 `;
 
-// 类型定义
-export interface RedPacketData {
+// 类型定义 - 匹配 schema 结构
+export interface UserData {
   id: string;
-  creator: string;
-  totalAmount: string;
-  totalCount: string;
-  claimedCount: string;
-  message: string;
-  createdAt: string;
-  isActive: boolean;
-  claims?: ClaimData[];
+  address: string;
 }
 
-export interface ClaimData {
+export interface RedPacketData {
   id: string;
-  claimer: string;
+  creator: UserData;
+  totalAmount: string;
+  remainingAmount: string;
+  totalCount: string;
+  remainingCount: string;
+  isEqual: boolean;
+  createTime: string;
+  isActive: boolean;
+  message: string;
+  blockNumber: string;
+  transactionHash: string;
+  grabRecords?: GrabRecordData[];
+}
+
+export interface GrabRecordData {
+  id: string;
+  redPackage?: RedPacketData;
+  grabber: UserData;
   amount: string;
   timestamp: string;
-  redPacket?: {
-    id: string;
-    creator: string;
-    message: string;
-    totalAmount?: string;
-  };
+  blockNumber: string;
+  transactionHash: string;
 }
 
 export interface ActivityData {
   id: string;
-  redPacket: {
-    id: string;
-    creator: string;
-    message: string;
-    totalAmount: string;
-  };
-  claimer: string;
+  redPackage: RedPacketData;
+  grabber: UserData;
   amount: string;
   timestamp: string;
+  blockNumber: string;
+  transactionHash: string;
 }
+
+// 为了向后兼容，也导出旧的接口名称（但使用新的数据结构）
+export interface ClaimData extends GrabRecordData {}

@@ -1,42 +1,41 @@
-'use client';
+'use client'
 
-import { useState } from 'react';
-import { useQuery } from '@apollo/client';
-import { formatEther } from 'viem';
-import { Button } from '@/components/ui/Button';
-import { 
-  GET_REDPACKETS, 
-  GET_USER_REDPACKETS, 
-  GET_USER_CLAIMS, 
+import { useState } from 'react'
+import { useQuery } from '@apollo/client'
+import { formatEther } from 'viem'
+import { Button } from '@/components/ui/Button'
+import {
+  GET_REDPACKETS,
+  GET_USER_REDPACKETS,
+  GET_USER_CLAIMS,
   GET_RECENT_ACTIVITIES,
   RedPacketData,
-  ClaimData,
-  ActivityData 
-} from '@/lib/graphql';
-import { formatAddress, truncateText } from '@/lib/utils';
-import { 
-  Gift, 
-  Users, 
-  Clock, 
+  GrabRecordData
+} from '@/lib/graphql'
+import { formatAddress, truncateText } from '@/lib/utils'
+import {
+  Gift,
+  Users,
+  Clock,
   Loader2,
   RefreshCw,
   ChevronLeft,
-  ChevronRight 
-} from 'lucide-react';
+  ChevronRight
+} from 'lucide-react'
 
 interface DataTableProps {
-  view: 'all' | 'user' | 'claims' | 'activities';
-  userAddress?: string;
+  view: 'all' | 'user' | 'claims' | 'activities'
+  userAddress?: string
 }
 
 export function DataTable({ view, userAddress }: DataTableProps) {
-  const [page, setPage] = useState(0);
-  const [pageSize] = useState(10);
-  
+  const [page, setPage] = useState(0)
+  const [pageSize] = useState(10)
+
   // 根据视图类型选择查询
   const getQueryConfig = () => {
-    const skip = page * pageSize;
-    
+    const skip = page * pageSize
+
     switch (view) {
       case 'user':
         return {
@@ -44,48 +43,48 @@ export function DataTable({ view, userAddress }: DataTableProps) {
           variables: {
             creator: userAddress?.toLowerCase() || '',
             first: pageSize,
-            skip,
+            skip
           },
-          enabled: !!userAddress,
-        };
+          enabled: !!userAddress
+        }
       case 'claims':
         return {
           query: GET_USER_CLAIMS,
           variables: {
-            claimer: userAddress?.toLowerCase() || '',
+            grabber: userAddress?.toLowerCase() || '',
             first: pageSize,
-            skip,
+            skip
           },
-          enabled: !!userAddress,
-        };
+          enabled: !!userAddress
+        }
       case 'activities':
         return {
           query: GET_RECENT_ACTIVITIES,
           variables: {
-            first: pageSize,
+            first: pageSize
           },
-          enabled: true,
-        };
+          enabled: true
+        }
       default:
         return {
           query: GET_REDPACKETS,
           variables: {
             first: pageSize,
             skip,
-            orderBy: 'createdAt',
-            orderDirection: 'desc',
+            orderBy: 'createTime',
+            orderDirection: 'desc'
           },
-          enabled: true,
-        };
+          enabled: true
+        }
     }
-  };
+  }
 
-  const queryConfig = getQueryConfig();
+  const queryConfig = getQueryConfig()
   const { data, loading, error, refetch } = useQuery(queryConfig.query, {
     variables: queryConfig.variables,
     skip: !queryConfig.enabled,
-    pollInterval: 30000,
-  });
+    pollInterval: 30000
+  })
 
   if (loading) {
     return (
@@ -93,7 +92,7 @@ export function DataTable({ view, userAddress }: DataTableProps) {
         <Loader2 className="w-8 h-8 animate-spin text-gray-400" />
         <span className="ml-2 text-gray-500">加载数据中...</span>
       </div>
-    );
+    )
   }
 
   if (error) {
@@ -105,55 +104,62 @@ export function DataTable({ view, userAddress }: DataTableProps) {
           重试
         </Button>
       </div>
-    );
+    )
   }
 
   const getTableData = () => {
-    if (!data) return [];
+    if (!data) return []
     switch (view) {
       case 'user':
-        return data.redPackets || [];
+        return data.redPackageEntities || []
       case 'claims':
-        return data.claims || [];
+        return data.grabRecords || []
       case 'activities':
-        return data.claims || [];
+        return data.grabRecords || []
       default:
-        return data.redPackets || [];
+        return data.redPackageEntities || []
     }
-  };
+  }
 
-  const tableData = getTableData();
-  const hasData = tableData.length > 0;
+  const tableData = getTableData()
+  const hasData = tableData.length > 0
 
   // 安全的BigInt处理函数
   const safeFormatEther = (value: string | bigint) => {
     try {
-      const bigintValue = typeof value === 'string' ? BigInt(value) : value;
-      return Number(formatEther(bigintValue)).toFixed(4);
+      const bigintValue = typeof value === 'string' ? BigInt(value) : value
+      return Number(formatEther(bigintValue)).toFixed(4)
     } catch (error) {
-      return '0.0000';
+      return '0.0000'
     }
-  };
+  }
 
   const safeToNumber = (value: string | number | bigint) => {
     try {
-      if (typeof value === 'bigint') return Number(value);
-      if (typeof value === 'string') return parseInt(value, 10);
-      return value;
+      if (typeof value === 'bigint') return Number(value)
+      if (typeof value === 'string') return parseInt(value, 10)
+      return value
     } catch (error) {
-      return 0;
+      return 0
     }
-  };
+  }
 
-  const calculateProgress = (claimed: string, total: string) => {
+  const calculateProgress = (remaining: string, total: string) => {
     try {
-      const claimedNum = safeToNumber(claimed);
-      const totalNum = safeToNumber(total);
-      return totalNum > 0 ? (claimedNum / totalNum) * 100 : 0;
+      const remainingNum = safeToNumber(remaining)
+      const totalNum = safeToNumber(total)
+      const claimed = totalNum - remainingNum
+      return totalNum > 0 ? (claimed / totalNum) * 100 : 0
     } catch (error) {
-      return 0;
+      return 0
     }
-  };
+  }
+
+  const getClaimedCount = (remaining: string, total: string) => {
+    const remainingNum = safeToNumber(remaining)
+    const totalNum = safeToNumber(total)
+    return totalNum - remainingNum
+  }
 
   return (
     <div className="bg-white rounded-lg shadow overflow-hidden">
@@ -168,11 +174,7 @@ export function DataTable({ view, userAddress }: DataTableProps) {
             {view === 'activities' && '最近活动'}
           </h3>
         </div>
-        <Button
-          onClick={() => refetch()}
-          variant="outline"
-          size="sm"
-        >
+        <Button onClick={() => refetch()} variant="outline" size="sm">
           <RefreshCw className="w-4 h-4 mr-2" />
           刷新
         </Button>
@@ -205,6 +207,9 @@ export function DataTable({ view, userAddress }: DataTableProps) {
                         进度
                       </th>
                       <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                        类型
+                      </th>
+                      <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
                         消息
                       </th>
                       <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
@@ -217,14 +222,21 @@ export function DataTable({ view, userAddress }: DataTableProps) {
                   </thead>
                   <tbody className="bg-white divide-y divide-gray-200">
                     {(tableData as RedPacketData[]).map((item) => {
-                      const progress = calculateProgress(item.claimedCount, item.totalCount);
+                      const progress = calculateProgress(
+                        item.remainingCount,
+                        item.totalCount
+                      )
+                      const claimedCount = getClaimedCount(
+                        item.remainingCount,
+                        item.totalCount
+                      )
                       return (
                         <tr key={item.id} className="hover:bg-gray-50">
                           <td className="px-6 py-4 whitespace-nowrap text-sm font-mono text-gray-900">
                             #{item.id}
                           </td>
                           <td className="px-6 py-4 whitespace-nowrap text-sm font-mono text-gray-500">
-                            {formatAddress(item.creator)}
+                            {formatAddress(item.creator.address)}
                           </td>
                           <td className="px-6 py-4 whitespace-nowrap text-sm font-semibold text-gray-900">
                             {safeFormatEther(item.totalAmount)} ETH
@@ -232,15 +244,31 @@ export function DataTable({ view, userAddress }: DataTableProps) {
                           <td className="px-6 py-4 whitespace-nowrap">
                             <div className="flex items-center space-x-2">
                               <div className="w-20 bg-gray-200 rounded-full h-2">
-                                <div 
+                                <div
                                   className="bg-red-500 h-2 rounded-full transition-all duration-300"
-                                  style={{ width: `${Math.min(100, Math.max(0, progress))}%` }}
+                                  style={{
+                                    width: `${Math.min(
+                                      100,
+                                      Math.max(0, progress)
+                                    )}%`
+                                  }}
                                 />
                               </div>
                               <span className="text-xs text-gray-500">
-                                {safeToNumber(item.claimedCount)}/{safeToNumber(item.totalCount)}
+                                {claimedCount}/{safeToNumber(item.totalCount)}
                               </span>
                             </div>
+                          </td>
+                          <td className="px-6 py-4 whitespace-nowrap">
+                            <span
+                              className={`px-2 py-1 rounded-full text-xs font-medium ${
+                                item.isEqual
+                                  ? 'bg-blue-100 text-blue-800'
+                                  : 'bg-purple-100 text-purple-800'
+                              }`}
+                            >
+                              {item.isEqual ? '等额' : '随机'}
+                            </span>
                           </td>
                           <td className="px-6 py-4 text-sm text-gray-900 max-w-xs truncate">
                             {truncateText(item.message, 30)}
@@ -248,20 +276,24 @@ export function DataTable({ view, userAddress }: DataTableProps) {
                           <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
                             <div className="flex items-center">
                               <Clock className="w-3 h-3 mr-1" />
-                              {new Date(parseInt(item.createdAt) * 1000).toLocaleDateString('zh-CN')}
+                              {new Date(
+                                parseInt(item.createTime) * 1000
+                              ).toLocaleDateString('zh-CN')}
                             </div>
                           </td>
                           <td className="px-6 py-4 whitespace-nowrap">
-                            <span className={`px-2 py-1 rounded-full text-xs font-medium ${
-                              item.isActive 
-                                ? 'bg-green-100 text-green-800' 
-                                : 'bg-gray-100 text-gray-800'
-                            }`}>
+                            <span
+                              className={`px-2 py-1 rounded-full text-xs font-medium ${
+                                item.isActive
+                                  ? 'bg-green-100 text-green-800'
+                                  : 'bg-gray-100 text-gray-800'
+                              }`}
+                            >
                               {item.isActive ? '活跃' : '已结束'}
                             </span>
                           </td>
                         </tr>
-                      );
+                      )
                     })}
                   </tbody>
                 </>
@@ -282,21 +314,22 @@ export function DataTable({ view, userAddress }: DataTableProps) {
                         时间
                       </th>
                       <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                        消息
+                        交易哈希
                       </th>
                     </tr>
                   </thead>
                   <tbody className="bg-white divide-y divide-gray-200">
-                    {(tableData as (ClaimData | ActivityData)[]).map((item) => (
+                    {(tableData as GrabRecordData[]).map((item) => (
                       <tr key={item.id} className="hover:bg-gray-50">
                         <td className="px-6 py-4 whitespace-nowrap text-sm font-mono text-gray-900">
-                          #{('redPacket' in item) ? item.redPacket?.id : (item as ClaimData).redPacket?.id}
+                          #{item.redPackage?.id || '-'}
                         </td>
                         <td className="px-6 py-4 whitespace-nowrap text-sm font-mono text-gray-500">
-                          {view === 'activities' 
-                            ? formatAddress((item as ActivityData).claimer)
-                            : formatAddress(('redPacket' in item) ? item.redPacket?.creator || '' : (item as ClaimData).redPacket?.creator || '')
-                          }
+                          {view === 'activities'
+                            ? formatAddress(item.grabber.address)
+                            : formatAddress(
+                                item.redPackage?.creator.address || ''
+                              )}
                         </td>
                         <td className="px-6 py-4 whitespace-nowrap text-sm font-semibold text-green-600">
                           +{safeFormatEther(item.amount)} ETH
@@ -304,14 +337,13 @@ export function DataTable({ view, userAddress }: DataTableProps) {
                         <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
                           <div className="flex items-center">
                             <Clock className="w-3 h-3 mr-1" />
-                            {new Date(parseInt(item.timestamp) * 1000).toLocaleString('zh-CN')}
+                            {new Date(
+                              parseInt(item.timestamp) * 1000
+                            ).toLocaleString('zh-CN')}
                           </div>
                         </td>
-                        <td className="px-6 py-4 text-sm text-gray-900 max-w-xs truncate">
-                          {truncateText(
-                            ('redPacket' in item) ? item.redPacket?.message || '' : (item as ClaimData).redPacket?.message || '', 
-                            30
-                          )}
+                        <td className="px-6 py-4 text-sm font-mono text-gray-500 max-w-xs truncate">
+                          {formatAddress(item.transactionHash, 8)}
                         </td>
                       </tr>
                     ))}
@@ -324,7 +356,12 @@ export function DataTable({ view, userAddress }: DataTableProps) {
           {/* 分页 */}
           <div className="px-6 py-4 border-t border-gray-200 flex items-center justify-between">
             <div className="flex items-center text-sm text-gray-500">
-              显示第 {page * pageSize + 1}-{Math.min((page + 1) * pageSize, page * pageSize + tableData.length)} 条
+              显示第 {page * pageSize + 1}-
+              {Math.min(
+                (page + 1) * pageSize,
+                page * pageSize + tableData.length
+              )}{' '}
+              条
             </div>
             <div className="flex items-center space-x-2">
               <Button
@@ -335,9 +372,7 @@ export function DataTable({ view, userAddress }: DataTableProps) {
               >
                 <ChevronLeft className="w-4 h-4" />
               </Button>
-              <span className="text-sm text-gray-500">
-                第 {page + 1} 页
-              </span>
+              <span className="text-sm text-gray-500">第 {page + 1} 页</span>
               <Button
                 onClick={() => setPage(page + 1)}
                 disabled={tableData.length < pageSize}
@@ -351,5 +386,5 @@ export function DataTable({ view, userAddress }: DataTableProps) {
         </>
       )}
     </div>
-  );
+  )
 }
